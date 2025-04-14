@@ -1,0 +1,31 @@
+name: Sync Main to Dev
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-main-to-dev:
+    runs-on: wisevision-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4     
+        with: 
+          fetch-depth: 0 
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Push changes to dev when main is updated
+        if: github.ref == 'refs/heads/main' 
+        run: | 
+          git fetch origin 
+          git checkout dev
+          git merge main -X theirs 
+          git push origin dev
