@@ -165,5 +165,8 @@ def ros2_get_messages(
     })
 
 
+def main():
+    mcp.run(transport="stdio")
+
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    main()

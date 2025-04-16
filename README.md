@@ -44,37 +44,41 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 
 ## Usage
 
-### Strat server localy with ROS2 sourced
-
-**Prerequisites**
-- [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Install ROS2](https://docs.ros.org/en/humble/Installation.html)
-
-**Clone repository**
-```bash
-git clone https://github.com/wise-vision/mcp_server_ros_2.git
-```
-
-**Install dependecies**
-```bash
-uv pip install -r pyproject.toml
-source .venv/bin/activate
-```
-
-**Start server**
-```
-python3 -m server.server
-```
-Server transport is `SSE`.
-- Server is running on port: `http://0.0.0.0:3333`
-
-## MCP Server Configuration
+### MCP Server Configuration
+**Docker run**
 
 Set MCP setting to mcp.json.
 ```json
 "mcp_server_ros_2": {
-    "type": "sse",
-    "url": "http://localhost:3333/sse",
+    "command": "docker",
+    "args": [
+        "run",
+        "-i",
+        "--rm",
+        "wisevision/mcp_server_ros_2"
+    ],
+    }
+
+```
+
+### Build docker image locally
+```bash
+git clone https://github.com/wise-vision/mcp_server_ros_2.git
+cd mcp_server_ros_2
+docker build -t mcp_server_ros_2 .
+```
+**Docker run**
+
+Set MCP setting to mcp.json.
+```json
+"mcp_server_ros_2": {
+    "command": "docker",
+    "args": [
+        "run",
+        "-i",
+        "--rm",
+        "mcp_server_ros_2"
+    ],
     }
 
 ```
