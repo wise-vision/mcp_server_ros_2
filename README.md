@@ -117,22 +117,7 @@ Set MCP setting to mcp.json.
 ```bash
 git clone https://github.com/wise-vision/mcp_server_ros_2.git
 cd mcp_server_ros_2
-docker build -t mcp_server_ros_2 .
-```
-**Docker run**
-
-Set MCP setting to mcp.json.
-```json
-"mcp_server_ros_2": {
-    "command": "docker",
-    "args": [
-        "run",
-        "-i",
-        "--rm",
-        "mcp_server_ros_2"
-    ],
-    }
-
+docker build -t wisevision/mcp_server_ros_2 .
 ```
 
 
