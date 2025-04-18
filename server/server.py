@@ -98,7 +98,7 @@ def call_ros2_service(
     # Call the actual service
     return ros.call_service(service_name, service_type, fields)
 
-@mcp.tool("ros2-topic-subscribe")
+@mcp.tool("ros2_topic_subscribe")
 def subscribe_to_topic(
     topic_name: str,
     msg_type: str,
@@ -116,7 +116,7 @@ def subscribe_to_topic(
 
     return ros.subscribe_topic(topic_name, msg_type, duration, message_limit)
 
-@mcp.tool("ros2-get-messages")
+@mcp.tool("ros2_get_messages")
 def ros2_get_messages(
     topic_name: str,
     message_type: str,
@@ -163,6 +163,52 @@ def ros2_get_messages(
         "time_start": time_start,
         "time_end": time_end
     })
+
+@mcp.tool("ros2_get_message_fields")
+def ros2_get_message_fields(
+    message_type: str,
+) -> dict:
+    """
+    Returns the fields of a given ROS2 message type.
+
+    Parameters:
+    - message_type: Full ROS2 message type, e.g., std_msgs/msg/String
+    """
+    return ros.get_request_fields(message_type)
+
+@mcp.tool("ros2_topic_publish")
+def ros2_publish_tool(
+    topic_name: str,
+    message_type: str,
+    data: dict
+) -> dict:
+    """
+    Publishes a message to a given topic.
+
+    Parameters:
+    - topic_name: The name of the ROS2 topic
+    - message_type: The full ROS2 message type, e.g., std_msgs/msg/String
+    - data: Dictionary with message fields
+    """
+    return ros.publish_to_topic(topic_name, message_type, data)
+
+@mcp.tool("ros2_topic_echo_wait")
+def ros2_echo_wait_tool(
+    topic_name: str,
+    msg_type: str,
+    timeout: Optional[float] = 5.0
+) -> dict:
+    if timeout in [None, "", "null", "undefined"]:
+        timeout = 5.0
+    """
+    Waits for a single message from a topic and returns it.
+
+    Parameters:
+    - topic_name: Name of the topic to listen to
+    - msg_type: Full message type, e.g., std_msgs/msg/String
+    - timeout: Optional timeout in seconds (default: 5.0)
+    """
+    return ros.echo_topic_once(topic_name, msg_type, timeout)
 
 
 def main():

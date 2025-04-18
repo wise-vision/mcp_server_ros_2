@@ -18,6 +18,8 @@ from rosidl_runtime_py.utilities import get_service, get_message
 from dateutil import parser
 import numpy as np
 import array
+import time
+from rclpy.task import Future
 
 
 class ServiceNode(Node):
@@ -52,20 +54,32 @@ class ROS2Manager:
             })
         return result
 
-    def get_request_fields(self, service_type: str):
+    def get_request_fields(self, ros_type: str):
         try:
-            parts = service_type.split('/')
-            if len(parts) == 2:
-                pkg, srv = parts
-            elif len(parts) == 3:
-                pkg, _, srv = parts
+            parts = ros_type.split('/')
+            if len(parts) == 3:
+                pkg, kind, name = parts
+            elif len(parts) == 2:
+                pkg, name = parts
+                kind = "msg"  # domyślnie zakładamy msg
             else:
-                return {"error": f"Invalid service type format: {service_type}"}
-            module = importlib.import_module(f"{pkg}.srv")
-            srv_class = getattr(module, srv)
-            return srv_class.Request.get_fields_and_field_types()
+                return {"error": f"Invalid type format: {ros_type}"}
+
+            if kind == "msg":
+                module = importlib.import_module(f"{pkg}.msg")
+                msg_class = getattr(module, name)
+                return msg_class.get_fields_and_field_types()
+
+            elif kind == "srv":
+                module = importlib.import_module(f"{pkg}.srv")
+                srv_class = getattr(module, name)
+                return srv_class.Request.get_fields_and_field_types()
+
+            else:
+                return {"error": f"Unsupported ROS type kind: {kind}"}
+
         except Exception as e:
-            return {"error": f"Failed to load {service_type}: {str(e)}"}
+            return {"error": f"Failed to load {ros_type}: {str(e)}"}
 
     
     def call_service(self, service_name: str, service_type: str, fields: dict) -> dict:
@@ -98,7 +112,7 @@ class ROS2Manager:
             return {"error": str(e)}
         
 
-    def serialize_msg(msg):
+    def serialize_msg(self, msg):
         try:
             # Try to extract fields using slots
             if hasattr(msg, '__slots__'):
@@ -287,6 +301,81 @@ class ROS2Manager:
                 raise Exception(f"Message deserialization error:” {e}")
         else:
             return None
+
+    def publish_to_topic(self, topic_name: str, message_type: str, data: dict) -> dict:
+        try:
+            parts = message_type.split('/')
+            if len(parts) == 3:
+                pkg, _, msg = parts
+            elif len(parts) == 2:
+                pkg, msg = parts
+            else:
+                return {"error": f"Invalid message type format: {message_type}"}
+
+            module = importlib.import_module(f"{pkg}.msg")
+            msg_class = getattr(module, msg)
+        except Exception as e:
+            return {"error": f"Failed to load message type: {str(e)}"}
+
+        try:
+            pub = self.node.create_publisher(msg_class, topic_name, 10)
+            msg_instance = msg_class()
+            for key, value in data.items():
+                setattr(msg_instance, key, value)
+            pub.publish(msg_instance)
+
+            return {"status": "published", "data": data}
+        except Exception as e:
+            return {"error": f"Failed to publish: {str(e)}"}
+        
+    def echo_topic_once(self, topic_name: str, msg_type: str, timeout: float = 5.0) -> dict:
+        available_topics = self.node.get_topic_names_and_types()
+        topic_names = [name for name, _ in available_topics]
+        if topic_name not in topic_names:
+            return {"error": f"Topic '{topic_name}' not found. Available: {topic_names}"}
+
+        parts = msg_type.split('/')
+        if len(parts) == 3:
+            pkg, _, msg = parts
+        elif len(parts) == 2:
+            pkg, msg = parts
+        else:
+            return {"error": f"Invalid message type format: {msg_type}"}
+
+        try:
+            module = importlib.import_module(f"{pkg}.msg")
+            msg_class = getattr(module, msg)
+        except Exception as e:
+            return {"error": f"Failed to import message type: {str(e)}"}
+
+        result_future = Future()
+
+        def callback(msg):
+            result_future.set_result(msg)
+
+        sub = self.node.create_subscription(msg_class, topic_name, callback, 10)
+
+        start = time.time()
+        try:
+            while rclpy.ok() and not result_future.done():
+                rclpy.spin_once(self.node, timeout_sec=0.1)
+                if time.time() - start > timeout:
+                    break
+        finally:
+            sub.destroy()
+
+        if result_future.done():
+            msg = result_future.result()
+            return {
+                "message": self.serialize_msg(msg),
+                "received": True
+            }
+        else:
+            return {
+                "error": f"No message received within {timeout} seconds.",
+                "received": False
+            }
+
 
     def shutdown(self):
         try:
