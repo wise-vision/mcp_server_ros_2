@@ -198,8 +198,6 @@ def ros2_echo_wait_tool(
     msg_type: str,
     timeout: Optional[float] = 5.0
 ) -> dict:
-    if timeout in [None, "", "null", "undefined"]:
-        timeout = 5.0
     """
     Waits for a single message from a topic and returns it.
 
@@ -208,6 +206,8 @@ def ros2_echo_wait_tool(
     - msg_type: Full message type, e.g., std_msgs/msg/String
     - timeout: Optional timeout in seconds (default: 5.0)
     """
+    if timeout in [None, "", "null", "undefined"]:
+        timeout = 5.0
     return ros.echo_topic_once(topic_name, msg_type, timeout)
 
 
