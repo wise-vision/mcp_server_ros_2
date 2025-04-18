@@ -112,7 +112,7 @@ class ROS2Manager:
             return {"error": str(e)}
         
 
-    def serialize_msg(self, msg):
+    def serialize_msg(msg):
         try:
             # Try to extract fields using slots
             if hasattr(msg, '__slots__'):
@@ -181,20 +181,8 @@ class ROS2Manager:
 
         elapsed = time.time() - start
 
-        def serialize_msg(msg):
-            try:
-                if hasattr(msg, "__slots__"):
-                    return {slot: getattr(msg, slot) for slot in msg.__slots__}
-                elif hasattr(msg, "data"):
-                    return {"data": msg.data}
-                else:
-                    return {"value": str(msg)}
-            except Exception as e:
-                return {"error": f"Failed to serialize message: {str(e)}"}
-            
-
         return {
-            "messages": [serialize_msg(msg) for msg in received],
+            "messages": [ROS2Manager.serialize_msg(msg) for msg in received],
             "count": len(received),
             "duration": round(elapsed, 2)
         }
@@ -303,6 +291,18 @@ class ROS2Manager:
             return None
 
     def publish_to_topic(self, topic_name: str, message_type: str, data: dict) -> dict:
+        # Validate topic_name
+        if not isinstance(topic_name, str) or not topic_name.strip():
+            return {"error": "Invalid topic name. It must be a non-empty string."}
+
+        # Validate message_type
+        if not isinstance(message_type, str) or '/' not in message_type:
+            return {"error": "Invalid message type. It must be a valid ROS2 message type string."}
+
+        # Validate data
+        if not isinstance(data, dict):
+            return {"error": "Invalid data. It must be a dictionary."}
+
         try:
             parts = message_type.split('/')
             if len(parts) == 3:
@@ -329,6 +329,18 @@ class ROS2Manager:
             return {"error": f"Failed to publish: {str(e)}"}
         
     def echo_topic_once(self, topic_name: str, msg_type: str, timeout: float = 5.0) -> dict:
+        # Validate topic_name
+        if not isinstance(topic_name, str) or not topic_name.strip():
+            return {"error": "Invalid topic name. It must be a non-empty string."}
+
+        # Validate msg_type
+        if not isinstance(msg_type, str) or '/' not in msg_type:
+            return {"error": "Invalid message type. It must be a valid ROS2 message type string."}
+
+        # Validate timeout
+        if not isinstance(timeout, (int, float)) or timeout <= 0:
+            return {"error": "Invalid timeout. It must be a positive number."}
+
         available_topics = self.node.get_topic_names_and_types()
         topic_names = [name for name, _ in available_topics]
         if topic_name not in topic_names:
@@ -367,7 +379,7 @@ class ROS2Manager:
         if result_future.done():
             msg = result_future.result()
             return {
-                "message": self.serialize_msg(msg),
+                "message": ROS2Manager.serialize_msg(msg),
                 "received": True
             }
         else:
