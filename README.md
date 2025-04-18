@@ -97,6 +97,9 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 ## Usage
 
 ### MCP Server Configuration
+> [!NOTE]
+> The server is running inside a Docker container as the root user. To communicate with other ROS components, they must also be run as root.
+
 **Docker run**
 
 Set MCP setting to mcp.json.
