@@ -9,7 +9,7 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 - List available topics 
 - List available services 
 - Call service
-- Get messages from [WiseVision Data Black Box](https://github.com/wise-vision/wisevision_data_black_box)
+- Get messages from [WiseVision Data Black Box](https://github.com/wise-vision/wisevision_data_black_box) ([influxDB](https://www.influxdata.com) alternative to [Rosbag2](https://github.com/ros2/rosbag2))
 - Subscribe topic to get messages
 - Publish message on topic
 - Echo message on topic
@@ -41,7 +41,7 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
         - `service_name` (string): Service name
         - `service_type` (string): Service type
         - `fields` (string array): Fields in service request filled with user data
-        - `force_call` (bool): Force service call without every field in service field up, Deafult set to false
+        - `force_call` (bool): Force service call without every field in service field up, Default set to false
     - Output:
         - `result` (string): Return result of the service call
         - `error` (string): Return error in case of error
@@ -56,9 +56,9 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
         - `msg_type` (string): Message type
         - `duration` (float): How long subscribe topic
         - `message_limit` (int): How many messages collect
-        - Deafult to collect first message, waiting 5 seconds
+        - Default to collect first message, waiting 5 seconds
     - Output:
-        - `messages`: Serilazed messages from topic
+        - `messages`: Serialized messages from topic
         - `count`: Number of collected messages
         - `duration`: How long messages has been collected
 
