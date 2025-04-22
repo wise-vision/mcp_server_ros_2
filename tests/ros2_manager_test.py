@@ -294,3 +294,124 @@ def test_call_get_messages_service_any_success(mock_spin, mock_deserialize, mock
         assert result["messages"][0] == {"temp": {}}
     finally:
         rclpy.shutdown()
+
+@patch("server.ros2_manager.ServiceNode")
+@patch("server.ros2_manager.importlib.import_module")
+def test_echo_topic_once_success(mock_import, mock_node_cls):
+    mock_node = MagicMock()
+    mock_node.get_topic_names_and_types.return_value = [("/chatter", ["std_msgs/msg/String"])]
+    mock_node_cls.return_value = mock_node
+
+    class FakeMsg:
+        __slots__ = ["data"]
+        def __init__(self):
+            self.data = "Hello"
+
+    fake_module = MagicMock()
+    fake_module.String = MagicMock()
+    mock_import.return_value = fake_module
+    fake_module.String.return_value = FakeMsg()
+
+    manager = ROS2Manager()
+    manager.node = mock_node
+
+    def fake_create_subscription(cls, topic, callback, qos):
+        callback(FakeMsg())  # simulate receiving a message
+        return MagicMock()
+
+    mock_node.create_subscription.side_effect = fake_create_subscription
+
+    result = manager.echo_topic_once("/chatter", "std_msgs/msg/String", timeout=1.0)
+
+    assert "message" in result
+    assert result["received"] is True
+    assert result["message"]["data"] == "Hello"
+
+@patch("server.ros2_manager.ServiceNode")
+@patch("server.ros2_manager.importlib.import_module")
+def test_publish_to_topic_success(mock_import, mock_node_cls):
+    mock_node = MagicMock()
+    mock_node_cls.return_value = mock_node
+
+    class FakeMsg:
+        __slots__ = ["data"]
+        def __init__(self):
+            self.data = None
+
+    fake_module = MagicMock()
+    fake_module.String = FakeMsg
+    mock_import.return_value = fake_module
+
+    manager = ROS2Manager()
+    manager.node = mock_node
+
+    mock_publisher = MagicMock()
+    mock_node.create_publisher.return_value = mock_publisher
+
+    result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", {"data": "Hello"})
+
+    assert result["status"] == "published"
+    assert result["data"] == {"data": "Hello"}
+    mock_publisher.publish.assert_called_once()
+    published_msg = mock_publisher.publish.call_args[0][0]
+    assert published_msg.data == "Hello"
+
+@patch("server.ros2_manager.ServiceNode")
+def test_publish_to_topic_invalid_topic_name(mock_node_cls):
+    manager = ROS2Manager()
+    result = manager.publish_to_topic("", "std_msgs/msg/String", {"data": "Hello"})
+    assert "error" in result
+    assert result["error"] == "Invalid topic name. It must be a non-empty string."
+
+@patch("server.ros2_manager.ServiceNode")
+def test_publish_to_topic_invalid_message_type(mock_node_cls):
+    manager = ROS2Manager()
+    result = manager.publish_to_topic("/chatter", "invalidtype", {"data": "Hello"})
+    assert "error" in result
+    assert result["error"] == "Invalid message type. It must be a valid ROS2 message type string."
+
+@patch("server.ros2_manager.ServiceNode")
+def test_publish_to_topic_invalid_data(mock_node_cls):
+    manager = ROS2Manager()
+    result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", "invalid_data")
+    assert "error" in result
+    assert result["error"] == "Invalid data. It must be a dictionary."
+
+@patch("server.ros2_manager.ServiceNode")
+def test_echo_topic_once_invalid_topic_name(mock_node_cls):
+    mock_node = MagicMock()
+    mock_node.get_topic_names_and_types.return_value = [("/chatter", ["std_msgs/msg/String"])]
+    mock_node_cls.return_value = mock_node
+
+    manager = ROS2Manager()
+    manager.node = mock_node
+
+    result = manager.echo_topic_once("", "std_msgs/msg/String", timeout=1.0)
+    assert "error" in result
+    assert result["error"] == "Invalid topic name. It must be a non-empty string."
+
+@patch("server.ros2_manager.ServiceNode")
+def test_echo_topic_once_invalid_message_type(mock_node_cls):
+    mock_node = MagicMock()
+    mock_node.get_topic_names_and_types.return_value = [("/chatter", ["std_msgs/msg/String"])]
+    mock_node_cls.return_value = mock_node
+
+    manager = ROS2Manager()
+    manager.node = mock_node
+
+    result = manager.echo_topic_once("/chatter", "invalidtype", timeout=1.0)
+    assert "error" in result
+    assert result["error"] == "Invalid message type. It must be a valid ROS2 message type string."
+
+@patch("server.ros2_manager.ServiceNode")
+def test_echo_topic_once_invalid_timeout(mock_node_cls):
+    mock_node = MagicMock()
+    mock_node.get_topic_names_and_types.return_value = [("/chatter", ["std_msgs/msg/String"])]
+    mock_node_cls.return_value = mock_node
+
+    manager = ROS2Manager()
+    manager.node = mock_node
+
+    result = manager.echo_topic_once("/chatter", "std_msgs/msg/String", timeout=-1)
+    assert "error" in result
+    assert result["error"] == "Invalid timeout. It must be a positive number."

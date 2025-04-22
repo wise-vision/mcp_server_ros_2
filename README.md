@@ -7,6 +7,12 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 - List available topics 
 - List available services 
 - Call service
+- Get messages from [WiseVision Data Black Box](https://github.com/wise-vision/wisevision_data_black_box)
+- Subscribe topic to get messages
+- Publish message on topic
+- Echo message on topic
+- Get fields from message type
+
 
 **Note:** To call service with custom service source it before start server.
 
@@ -34,49 +40,87 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
         - `service_type` (string): Service type
         - `fields` (string array): Fields in service request filled with user data
         - `force_call` (bool): Force service call without every field in service field up, Deafult set to false
-    - Output
+    - Output:
         - `result` (string): Return result of the service call
         - `error` (string): Return error in case of error
     - Features:
         - Check if service exists
         - Check if every field in service is provide
 
+- **ros2_topic_subscribe**
+    - Subscribes to a ROS 2 topic and collects messages either for a duration or a message limit.
+    - Inputs:
+        - `topic_name` (string): Topic name
+        - `msg_type` (string): Message type
+        - `duration` (float): How long subscribe topic
+        - `message_limit` (int): How many messages collect
+        - Deafult to collect first message, waiting 5 seconds
+    - Output:
+        - `messages`: Serilazed messages from topic
+        - `count`: Number of collected messages
+        - `duration`: How long messages has been collected
+
+- **ros2_get_messages**
+    - Inputs:
+        - `topic_name` (string): Topic name
+        - `message_type` (string): Message type
+        - `number_of_msg`(int): How many messages get from data black box
+        - `time_start` (str): Start time for data retrieval. Only messages with timestamps after this will be returned
+        - `time_end` (str):  End time for data retrieval. Only messages with timestamps before this will be returned
+    - Output:
+        - `timestamps`: Time values used to indicate when each message was created, recorded, or received. Typically represented as ISO 8601 strings or UNIX epoch times. Used for filtering, ordering, and synchronizing data.
+        - `messages`: Individual units of published data in ROS 2 topics. Each message contains a structured payload defined by its message type (e.g., `std_msgs/msg/String`).
+
+- **ros2_get_message_fields**
+    - Inputs:
+        - `message_type` (string): Message type
+    - Output:
+        - Returns the field names and types for a given ROS 2 message request type
+
+- **ros2_topic_publish**
+    - Inputs:
+        - `topic_name` (string): Topic name
+        - `message_type` (string): Message type
+        - `data` (dict): Dictionary with message fields
+    - Output:
+        - `status`: Status of publication
+
+- **ros2_topic_echo_wait**
+    - Inputs:
+        - `topic_name` (string): Topic name
+        - `message_type` (string): Message type
+        - `timeout` (float): Duration to wait for a message before giving up.
+    - Output:
+        - `message`: The deserialized ROS 2 message, converted to a Python dictionary (via message_to_ordereddict)
+        - `received`: true, indicating the message was successfully received
 
 ## Usage
 
-### Strat server localy with ROS2 sourced
+### MCP Server Configuration
+> [!NOTE]
+> The server is running inside a Docker container as the root user. To communicate with other ROS components, they must also be run as root.
 
-**Prerequisites**
-- [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Install ROS2](https://docs.ros.org/en/humble/Installation.html)
-
-**Clone repository**
-```bash
-git clone https://github.com/wise-vision/mcp_server_ros_2.git
-```
-
-**Install dependecies**
-```bash
-uv pip install -r pyproject.toml
-source .venv/bin/activate
-```
-
-**Start server**
-```
-python3 -m server.server
-```
-Server transport is `SSE`.
-- Server is running on port: `http://0.0.0.0:3333`
-
-## MCP Server Configuration
+**Docker run**
 
 Set MCP setting to mcp.json.
 ```json
 "mcp_server_ros_2": {
-    "type": "sse",
-    "url": "http://localhost:3333/sse",
+    "command": "docker",
+    "args": [
+        "run",
+        "-i",
+        "--rm",
+        "wisevision/mcp_server_ros_2"
+    ],
     }
 
+```
+
+### Build docker image locally
+```bash
+git clone https://github.com/wise-vision/mcp_server_ros_2.git
+cd mcp_server_ros_2
+docker build -t wisevision/mcp_server_ros_2 .
 ```
 
 
