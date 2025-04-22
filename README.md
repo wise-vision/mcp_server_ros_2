@@ -3,6 +3,8 @@
 
 Python server implementing Model Context Protocol (MCP) for ROS2.
 
+![Demo](docs/assets/mcp-ros2-server.gif)
+
 # Features
 - List available topics 
 - List available services 
@@ -99,6 +101,9 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 ### MCP Server Configuration
 > [!NOTE]
 > The server is running inside a Docker container as the root user. To communicate with other ROS components, they must also be run as root.
+
+> [!NOTE]
+> Due to this [issue](https://github.com/microsoft/vscode-copilot-release/issues/7505), this MCP server doesn't work with Copilot in Visual Studio Code.
 
 **Docker run**
 
