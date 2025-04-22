@@ -1,7 +1,7 @@
 [project]
-name = "mcp-server-demo"
+name = "mcp_server_ros_2"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP Server for ROS 2"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,3 +15,6 @@ dependencies = [
 dev-dependencies = [
     "pytest>=8.0",
 ]
+
+[tool.setuptools]
+packages = { find = {} }
