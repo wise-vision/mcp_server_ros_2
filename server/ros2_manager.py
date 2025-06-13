@@ -14,6 +14,7 @@ from rclpy.node import Node
 import importlib
 from typing import Any, Optional
 from rclpy.serialization import deserialize_message
+from rosidl_runtime_py import get_interfaces
 from rosidl_runtime_py.utilities import get_service, get_message
 from dateutil import parser
 import numpy as np
@@ -21,10 +22,15 @@ import array
 import time
 from rclpy.task import Future
 
+# Test
+from builtin_interfaces.msg import Time, Duration
+from std_msgs.msg import Header
+
 
 class ServiceNode(Node):
     def __init__(self):
-        super().__init__('mcp_service_lister')
+        super().__init__("mcp_service_lister")
+
 
 class ROS2Manager:
     def __init__(self):
@@ -35,10 +41,14 @@ class ROS2Manager:
         result = []
         for name, types in topic_names_and_types:
             topic_type = types[0] if types else "unknown"
-            result.append({
-                "topic_name": name,
-                "topic_type": topic_type
-            })
+            request_fields = self.get_request_fields(topic_type)
+            result.append(
+                {
+                    "topic_name": name,
+                    "topic_type": topic_type,
+                    "request_fields": request_fields,
+                }
+            )
         return result
 
     def list_services(self):
@@ -47,16 +57,28 @@ class ROS2Manager:
         for name, types in service_list:
             service_type = types[0] if types else "unknown"
             request_fields = self.get_request_fields(service_type)
-            result.append({
-                "service_name": name,
-                "service_type": service_type,
-                "request_fields": request_fields
-            })
+            result.append(
+                {
+                    "service_name": name,
+                    "service_type": service_type,
+                    "request_fields": request_fields,
+                }
+            )
+        return result
+
+    def list_interfaces(self):
+        interfaces = get_interfaces()
+        result = []
+        for pkg_name, interfaces in interfaces.items():
+            for iface in interfaces:
+                # iface like "msg/String" or "srv/SetBool"
+                result.append(f"{pkg_name}/{iface}")
+
         return result
 
     def get_request_fields(self, ros_type: str):
         try:
-            parts = ros_type.split('/')
+            parts = ros_type.split("/")
             if len(parts) == 3:
                 pkg, kind, name = parts
             elif len(parts) == 2:
@@ -81,10 +103,9 @@ class ROS2Manager:
         except Exception as e:
             return {"error": f"Failed to load {ros_type}: {str(e)}"}
 
-    
     def call_service(self, service_name: str, service_type: str, fields: dict) -> dict:
         try:
-            parts = service_type.split('/')
+            parts = service_type.split("/")
             if len(parts) == 2:
                 pkg, srv = parts
             elif len(parts) == 3:
@@ -98,9 +119,7 @@ class ROS2Manager:
             if not client.wait_for_service(timeout_sec=3.0):
                 return {"error": f"Service '{service_name}' not available (timed out)."}
 
-            request = srv_class.Request()
-            for key, value in fields.items():
-                setattr(request, key, value)
+            request = self.fill_ros_message(srv_class.Request, fields)
 
             future = client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future)
@@ -110,27 +129,26 @@ class ROS2Manager:
                 return {"error": "Service call failed."}
         except Exception as e:
             return {"error": str(e)}
-        
 
     def serialize_msg(msg):
         try:
             # Try to extract fields using slots
-            if hasattr(msg, '__slots__'):
+            if hasattr(msg, "__slots__"):
                 return {slot: getattr(msg, slot) for slot in msg.__slots__}
             # Fallback for simple messages like Int32
-            elif hasattr(msg, 'data'):
-                return {'data': msg.data}
+            elif hasattr(msg, "data"):
+                return {"data": msg.data}
             else:
-                return {'value': str(msg)}
+                return {"value": str(msg)}
         except Exception as e:
-            return {'error': f'Failed to serialize message: {str(e)}'}
-            
+            return {"error": f"Failed to serialize message: {str(e)}"}
+
     def subscribe_topic(
         self,
         topic_name: str,
         msg_type: str,
         duration: Optional[float] = None,
-        message_limit: Optional[int] = None
+        message_limit: Optional[int] = None,
     ) -> dict:
         import importlib
         import time
@@ -139,14 +157,16 @@ class ROS2Manager:
         available_topics = self.node.get_topic_names_and_types()
         topic_names = [name for name, _ in available_topics]
         if topic_name not in topic_names:
-            return {"error": f"Topic '{topic_name}' not found. Available topics: {topic_names}"}
+            return {
+                "error": f"Topic '{topic_name}' not found. Available topics: {topic_names}"
+            }
 
         # Fallback to avoid infinite wait
         if not duration and not message_limit:
             duration = 5.0  # default duration in seconds
 
         # Dynamically load message class
-        parts = msg_type.split('/')
+        parts = msg_type.split("/")
         if len(parts) == 3:
             pkg, _, msg = parts
         elif len(parts) == 2:
@@ -184,26 +204,28 @@ class ROS2Manager:
         return {
             "messages": [ROS2Manager.serialize_msg(msg) for msg in received],
             "count": len(received),
-            "duration": round(elapsed, 2)
+            "duration": round(elapsed, 2),
         }
 
     def call_get_messages_service_any(self, params: dict) -> dict:
-        service_type = get_service('lora_msgs/srv/GetMessages')
+        service_type = get_service("lora_msgs/srv/GetMessages")
         if not service_type:
             raise ImportError("Service type not found for 'GetMessages'")
-        client = self.node.create_client(service_type, '/get_messages')
+        client = self.node.create_client(service_type, "/get_messages")
         while not client.wait_for_service(timeout_sec=1.0):
             if not rclpy.ok():
-                raise Exception("Interrupted while waiting for the service. ROS shutdown.")
+                raise Exception(
+                    "Interrupted while waiting for the service. ROS shutdown."
+                )
 
         request = service_type.Request()
-        topic_name = params.get('topic_name')
+        topic_name = params.get("topic_name")
         request.topic_name = topic_name
-        request.message_type = 'any'
-        request.number_of_msgs = params.get('number_of_msgs', 0)
+        request.message_type = "any"
+        request.number_of_msgs = params.get("number_of_msgs", 0)
 
         def parse_iso8601_to_fulldatetime(iso8601_str):
-            FullDateTime = get_message('lora_msgs/msg/FullDateTime')
+            FullDateTime = get_message("lora_msgs/msg/FullDateTime")
 
             dt = parser.isoparse(iso8601_str)
 
@@ -214,14 +236,14 @@ class ROS2Manager:
             full_datetime.hour = dt.hour
             full_datetime.minute = dt.minute
             full_datetime.second = dt.second
-            full_datetime.nanosecond = dt.microsecond * 1000 
+            full_datetime.nanosecond = dt.microsecond * 1000
 
             return full_datetime
 
-        if params.get('time_start'):
-            request.time_start = parse_iso8601_to_fulldatetime(params['time_start'])
-        if params.get('time_end'):
-            request.time_end = parse_iso8601_to_fulldatetime(params['time_end'])
+        if params.get("time_start"):
+            request.time_start = parse_iso8601_to_fulldatetime(params["time_start"])
+        if params.get("time_end"):
+            request.time_end = parse_iso8601_to_fulldatetime(params["time_end"])
 
         future = client.call_async(request)
 
@@ -233,33 +255,37 @@ class ROS2Manager:
         response = future.result()
         if response:
             try:
-                MessageType = get_message(params.get('message_type'))
+                MessageType = get_message(params.get("message_type"))
                 messages = []
                 data = response.data
                 offset = 0
 
                 while offset < len(data):
-                    message_length = int.from_bytes(data[offset:offset + 4], byteorder='big')
+                    message_length = int.from_bytes(
+                        data[offset : offset + 4], byteorder="big"
+                    )
                     offset += 4
 
-                    message_data = bytes(data[offset:offset + message_length])
+                    message_data = bytes(data[offset : offset + message_length])
                     offset += message_length
 
                     message = deserialize_message(message_data, MessageType())
                     messages.append(message)
 
-
                 def serialize_ros_message(msg):
                     result = {}
-                    for field_name, field_type in msg.get_fields_and_field_types().items():
+                    for (
+                        field_name,
+                        field_type,
+                    ) in msg.get_fields_and_field_types().items():
                         value = getattr(msg, field_name)
 
-                        if hasattr(value, 'get_fields_and_field_types'):
+                        if hasattr(value, "get_fields_and_field_types"):
                             result[field_name] = serialize_ros_message(value)
                         elif isinstance(value, list):
                             serialized_list = []
                             for item in value:
-                                if hasattr(item, 'get_fields_and_field_types'):
+                                if hasattr(item, "get_fields_and_field_types"):
                                     serialized_list.append(serialize_ros_message(item))
                                 elif isinstance(item, (array.array, tuple)):
                                     serialized_list.append(list(item))
@@ -271,17 +297,23 @@ class ROS2Manager:
                         elif isinstance(value, np.ndarray):
                             result[field_name] = value.tolist()
                         elif isinstance(value, (bytes, bytearray)):
-                            result[field_name] = value.decode('utf-8', errors='ignore')
+                            result[field_name] = value.decode("utf-8", errors="ignore")
                         elif isinstance(value, (int, float, str, bool)):
                             result[field_name] = value
                         else:
-                            print(f"Unsupported type for JSON serialization: {field_name} of type {type(value)}")
+                            print(
+                                f"Unsupported type for JSON serialization: {field_name} of type {type(value)}"
+                            )
                             result[field_name] = str(value)
 
                     return result
+
                 serialized_response = {
-                    'timestamps': [serialize_ros_message(timestamp) for timestamp in response.timestamps],
-                    'messages': [serialize_ros_message(msg) for msg in messages]
+                    "timestamps": [
+                        serialize_ros_message(timestamp)
+                        for timestamp in response.timestamps
+                    ],
+                    "messages": [serialize_ros_message(msg) for msg in messages],
                 }
 
                 return serialized_response
@@ -290,21 +322,98 @@ class ROS2Manager:
         else:
             return None
 
+    def fill_ros_message(self, msg_class, data):
+        msg = msg_class()
+        for key, value in data.items():
+            if not hasattr(msg, key):
+                raise AttributeError(f"{msg_class} has no field '{key}'")
+
+            attr = getattr(msg, key)
+            expected_type = type(attr)
+
+            # Obsługa zagnieżdżonych wiadomości
+            if hasattr(expected_type, "__slots__") and isinstance(value, dict):
+                setattr(msg, key, self.fill_ros_message(expected_type, value))
+
+            # Obsługa list
+            elif isinstance(attr, list) and isinstance(value, list):
+                # Lista elementów typu prostego
+                if not attr:
+                    setattr(msg, key, value)
+                else:
+                    sub_type = type(attr[0])
+                    filled_list = []
+                    for v in value:
+                        if hasattr(sub_type, "__slots__") and isinstance(v, dict):
+                            filled_list.append(self.fill_ros_message(sub_type, v))
+                        else:
+                            filled_list.append(self._coerce_type(v, sub_type))
+                    setattr(msg, key, filled_list)
+
+            # Typ specjalny: Time / Duration
+            elif isinstance(attr, (Time, Duration)) and isinstance(value, dict):
+                setattr(
+                    msg,
+                    key,
+                    expected_type(
+                        sec=value.get("sec", 0), nanosec=value.get("nanosec", 0)
+                    ),
+                )
+
+            # Header
+            elif isinstance(attr, Header) and isinstance(value, dict):
+                header = Header()
+                if "frame_id" in value:
+                    header.frame_id = value["frame_id"]
+                if "stamp" in value:
+                    stamp_data = value["stamp"]
+                    header.stamp = Time(
+                        sec=stamp_data.get("sec", 0),
+                        nanosec=stamp_data.get("nanosec", 0),
+                    )
+                setattr(msg, key, header)
+
+            # Typy proste: float, int, bool, str
+            else:
+                coerced = self._coerce_type(value, expected_type)
+                setattr(msg, key, coerced)
+
+        return msg
+
+    def _coerce_type(self, value, expected_type):
+        try:
+            if expected_type == float and not isinstance(value, float):
+                return float(value)
+            elif expected_type == int and not isinstance(value, int):
+                return int(value)
+            elif expected_type == bool and not isinstance(value, bool):
+                return bool(value)
+            elif expected_type == str and not isinstance(value, str):
+                return str(value)
+            else:
+                return value
+        except Exception as e:
+            raise ValueError(
+                f"Cannot convert value '{value}' to type '{expected_type}': {e}"
+            )
+
     def publish_to_topic(self, topic_name: str, message_type: str, data: dict) -> dict:
         # Validate topic_name
         if not isinstance(topic_name, str) or not topic_name.strip():
             return {"error": "Invalid topic name. It must be a non-empty string."}
 
         # Validate message_type
-        if not isinstance(message_type, str) or '/' not in message_type:
-            return {"error": "Invalid message type. It must be a valid ROS2 message type string."}
+        if not isinstance(message_type, str) or "/" not in message_type:
+            return {
+                "error": "Invalid message type. It must be a valid ROS2 message type string."
+            }
 
         # Validate data
         if not isinstance(data, dict):
             return {"error": "Invalid data. It must be a dictionary."}
 
         try:
-            parts = message_type.split('/')
+            parts = message_type.split("/")
             if len(parts) == 3:
                 pkg, _, msg = parts
             elif len(parts) == 2:
@@ -319,23 +428,25 @@ class ROS2Manager:
 
         try:
             pub = self.node.create_publisher(msg_class, topic_name, 10)
-            msg_instance = msg_class()
-            for key, value in data.items():
-                setattr(msg_instance, key, value)
+            msg_instance = self.fill_ros_message(msg_class, data)
             pub.publish(msg_instance)
 
             return {"status": "published", "data": data}
         except Exception as e:
-            return {"error": f"Failed to publish: {str(e)}"}
-        
-    def echo_topic_once(self, topic_name: str, msg_type: str, timeout: float = 5.0) -> dict:
+            return {"error": f"Failed to publish: {str(e)}, logged data: {data}"}
+
+    def echo_topic_once(
+        self, topic_name: str, msg_type: str, timeout: float = 5.0
+    ) -> dict:
         # Validate topic_name
         if not isinstance(topic_name, str) or not topic_name.strip():
             return {"error": "Invalid topic name. It must be a non-empty string."}
 
         # Validate msg_type
-        if not isinstance(msg_type, str) or '/' not in msg_type:
-            return {"error": "Invalid message type. It must be a valid ROS2 message type string."}
+        if not isinstance(msg_type, str) or "/" not in msg_type:
+            return {
+                "error": "Invalid message type. It must be a valid ROS2 message type string."
+            }
 
         # Validate timeout
         if not isinstance(timeout, (int, float)) or timeout <= 0:
@@ -344,9 +455,11 @@ class ROS2Manager:
         available_topics = self.node.get_topic_names_and_types()
         topic_names = [name for name, _ in available_topics]
         if topic_name not in topic_names:
-            return {"error": f"Topic '{topic_name}' not found. Available: {topic_names}"}
+            return {
+                "error": f"Topic '{topic_name}' not found. Available: {topic_names}"
+            }
 
-        parts = msg_type.split('/')
+        parts = msg_type.split("/")
         if len(parts) == 3:
             pkg, _, msg = parts
         elif len(parts) == 2:
@@ -378,16 +491,12 @@ class ROS2Manager:
 
         if result_future.done():
             msg = result_future.result()
-            return {
-                "message": ROS2Manager.serialize_msg(msg),
-                "received": True
-            }
+            return {"message": ROS2Manager.serialize_msg(msg), "received": True}
         else:
             return {
                 "error": f"No message received within {timeout} seconds.",
-                "received": False
+                "received": False,
             }
-
 
     def shutdown(self):
         try:
