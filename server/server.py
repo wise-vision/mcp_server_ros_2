@@ -23,7 +23,7 @@ from server.ros2_manager import ROS2Manager
 port = int(os.getenv("MCP_SERVER_PORT", 3333))
 
 # Initialize MCP server with the dynamic port
-mcp = FastMCP("MyServer", port=port)
+mcp = FastMCP("MCP_ROS2_server", port=port)
 
 
 # Init ROS 2 once globally
