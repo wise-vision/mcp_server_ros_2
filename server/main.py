@@ -7,9 +7,13 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-
+import rclpy
 import argparse
-from .server import mcp
+import asyncio
+from .server import app
+from mcp.server import FastMCP
+from .transport import TransportMixin
+
 
 try:
     import extensions  # noqa
@@ -33,7 +37,13 @@ def main():
     transport: str = args.transport
     print(f'Starting MCP - ROS 2 server using "{transport}" transport')
 
-    mcp.run(transport=transport)
+    rclpy.init()
+
+    try:
+        transport_mixin = TransportMixin(app)
+        transport_mixin.run(transport)
+    finally:
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
