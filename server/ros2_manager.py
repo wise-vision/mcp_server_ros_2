@@ -21,8 +21,6 @@ import numpy as np
 import array
 import time
 from rclpy.task import Future
-
-# Test
 from builtin_interfaces.msg import Time, Duration
 from std_msgs.msg import Header
 
@@ -69,8 +67,8 @@ class ROS2Manager:
     def list_interfaces(self):
         interfaces = get_interfaces()
         result = []
-        for pkg_name, interfaces in interfaces.items():
-            for iface in interfaces:
+        for pkg_name, iface_list in interfaces.items():
+            for iface in iface_list:
                 # iface like "msg/String" or "srv/SetBool"
                 result.append(f"{pkg_name}/{iface}")
 
@@ -331,13 +329,13 @@ class ROS2Manager:
             attr = getattr(msg, key)
             expected_type = type(attr)
 
-            # Obsługa zagnieżdżonych wiadomości
+            # Support for nested messages
             if hasattr(expected_type, "__slots__") and isinstance(value, dict):
                 setattr(msg, key, self.fill_ros_message(expected_type, value))
 
-            # Obsługa list
+            # List handling
             elif isinstance(attr, list) and isinstance(value, list):
-                # Lista elementów typu prostego
+                # List of simple type elements
                 if not attr:
                     setattr(msg, key, value)
                 else:
@@ -350,7 +348,7 @@ class ROS2Manager:
                             filled_list.append(self._coerce_type(v, sub_type))
                     setattr(msg, key, filled_list)
 
-            # Typ specjalny: Time / Duration
+            # Special type: Time / Duration
             elif isinstance(attr, (Time, Duration)) and isinstance(value, dict):
                 setattr(
                     msg,
@@ -373,7 +371,7 @@ class ROS2Manager:
                     )
                 setattr(msg, key, header)
 
-            # Typy proste: float, int, bool, str
+            # Simple types: float, int, bool, str
             else:
                 coerced = self._coerce_type(value, expected_type)
                 setattr(msg, key, coerced)
@@ -433,7 +431,7 @@ class ROS2Manager:
 
             return {"status": "published", "data": data}
         except Exception as e:
-            return {"error": f"Failed to publish: {str(e)}, logged data: {data}"}
+            return {"error": "Failed to publish message due to an internal error."}
 
     def echo_topic_once(
         self, topic_name: str, msg_type: str, timeout: float = 5.0
