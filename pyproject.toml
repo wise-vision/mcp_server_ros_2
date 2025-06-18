@@ -12,7 +12,8 @@ dependencies = [
     "mcp[cli]>=1.9.4",
     "numpy",
     "PyYAML",
-    "python-dateutil"
+    "python-dateutil",
+    "lark"
 ]
 
 [tool.uv]
