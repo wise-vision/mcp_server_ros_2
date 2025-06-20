@@ -24,7 +24,10 @@ _ros_instance = None
 
 def get_ros() -> ros2_manager.ROS2Manager:
     global _ros_instance
-    if _ros_instance is None:
+    if (
+        _ros_instance is None
+        or not _ros_instance.node.context.ok()
+    ):
         import rclpy
 
         if not rclpy.ok():
