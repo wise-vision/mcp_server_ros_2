@@ -8,7 +8,6 @@
 #  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
 
-from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import Server as BaseServer
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server

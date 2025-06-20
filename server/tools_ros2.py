@@ -139,7 +139,7 @@ class ROS2ServiceCall(toolhandler.ToolHandler):
         service_name = args.get("service_name")
         service_type = args.get("service_type")
         fields = args.get("fields")
-        fore_call = args.get("fore_call")
+        force_call = args.get("force_call")
 
         ros = get_ros()
         # Check if service exists
@@ -153,9 +153,9 @@ class ROS2ServiceCall(toolhandler.ToolHandler):
 
         missing_fields = [key for key in required_fields if key not in fields]
 
-        if missing_fields and not fore_call:
-            message = f"You're missing fields: {missing_fields}."
-            "Would you like to call the service anyway (set 'force_call' = true) or add more inputs?"
+        if missing_fields and not force_call:
+            message = f"You're missing fields: {missing_fields}. " 
+            message += "Would you like to call the service anyway (set 'force_call' = true) or add more inputs?" 
             return [TextContent(type="text", text=json.dumps(message, indent=2))]
         response = ros.call_service(service_name, service_type, fields)
 

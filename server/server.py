@@ -75,5 +75,5 @@ async def call_tool(
         return tool_handler.run_tool(arguments)
     except Exception as e:
         logging.error(traceback.format_exc())
-        logging.error(f"Error during call_tool: str(e)")
+        logging.error(f"Error during call_tool: {e}") 
         raise RuntimeError(f"Caught Exception. Error: {str(e)}")

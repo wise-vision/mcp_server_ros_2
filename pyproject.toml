@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.9.4",
-    "numpy",
+    "numpy>=1.21,<2.0", 
     "PyYAML",
     "python-dateutil",
     "lark"
