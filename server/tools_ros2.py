@@ -24,10 +24,7 @@ _ros_instance = None
 
 def get_ros() -> ros2_manager.ROS2Manager:
     global _ros_instance
-    if (
-        _ros_instance is None
-        or not _ros_instance.node.context.ok()
-    ):
+    if _ros_instance is None or not _ros_instance.node.context.ok():
         import rclpy
 
         if not rclpy.ok():
@@ -154,8 +151,8 @@ class ROS2ServiceCall(toolhandler.ToolHandler):
         missing_fields = [key for key in required_fields if key not in fields]
 
         if missing_fields and not force_call:
-            message = f"You're missing fields: {missing_fields}. " 
-            message += "Would you like to call the service anyway (set 'force_call' = true) or add more inputs?" 
+            message = f"You're missing fields: {missing_fields}. "
+            message += "Would you like to call the service anyway (set 'force_call' = true) or add more inputs?"
             return [TextContent(type="text", text=json.dumps(message, indent=2))]
         response = ros.call_service(service_name, service_type, fields)
 

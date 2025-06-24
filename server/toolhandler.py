@@ -23,5 +23,7 @@ class ToolHandler:
     def get_tool_description(self) -> Tool:
         raise NotImplementedError()
 
-    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+    def run_tool(
+        self, args: dict
+    ) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
         raise NotImplementedError()

@@ -11,8 +11,14 @@
 from mcp.server.lowlevel.server import Server as BaseServer
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
-from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.routing import Route, Mount
+from starlette.applications import Starlette
+from starlette.types import Scope, Receive, Send
+
+from mcp.server.sse import SseServerTransport
+from mcp.server.lowlevel.server import Server as BaseServer
 import uvicorn
 import anyio
 
@@ -40,11 +46,11 @@ class TransportMixin:
             )
 
     async def run_sse_async(
-        self, sse_path: str = "/sse", message_path: str = "/messages"
+        self, sse_path: str = "/sse", message_path: str = "/messages/"
     ) -> None:
         sse = SseServerTransport(message_path)
 
-        async def handle_sse(scope, receive, send):
+        async def handle_sse(scope: Scope, receive: Receive, send: Send):
             async with sse.connect_sse(scope, receive, send) as streams:
                 await self._mcp_server.run(
                     streams[0],
@@ -52,14 +58,26 @@ class TransportMixin:
                     self._mcp_server.create_initialization_options(),
                 )
 
-        routes = [
-            Route(sse_path, endpoint=handle_sse, methods=["GET"]),
-            Mount(message_path, app=sse.handle_post_message),
-        ]
+        # Wrapping ASGI app in a HTTP-style endpoint
+        async def sse_endpoint(request: Request) -> Response:
+            async def _asgi_app(scope, receive, send):
+                await handle_sse(scope, receive, send)
 
-        app = Starlette(debug=True, routes=routes)
+            return await _asgi_app(request.scope, request.receive, request._send)
+
+        app = Starlette(
+            debug=True,
+            routes=[
+                Route(sse_path, endpoint=sse_endpoint, methods=["GET"]),
+                Mount(message_path, app=sse.handle_post_message),
+            ],
+        )
+
         config = uvicorn.Config(
-            app, host=self._host, port=self._port, log_level=self._log_level.lower()
+            app,
+            host=self._host,
+            port=self._port,
+            log_level=self._log_level.lower(),
         )
         server = uvicorn.Server(config)
         await server.serve()
