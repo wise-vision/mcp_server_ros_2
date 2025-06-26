@@ -138,3 +138,16 @@ Before calling any tool, always check your memory to see if the list of availabl
 	•	If a user requests something that may require a tool and you don’t have the right tool info, ask them or call list-tools first.
 Once the tool list is loaded, you may call tools directly using their documented names and schemas.
 ```
+
+# Debugging
+
+Since MCP servers run over stdio, debugging can be challenging. For the best debugging
+experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
+
+You can launch the MCP Inspector via [ `npm` ](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory /path/to/mcp_server_ros2 run mcp_server_ros_2
+```
+
+Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
