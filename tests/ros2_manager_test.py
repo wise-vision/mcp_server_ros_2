@@ -26,8 +26,16 @@ def test_list_topics(mock_node_cls):
     result = manager.list_topics()
 
     assert result == [
-        {"topic_name": "/chatter", "topic_type": "std_msgs/msg/String"},
-        {"topic_name": "/sensor", "topic_type": "std_msgs/msg/Float32"},
+        {
+            "topic_name": "/chatter",
+            "topic_type": "std_msgs/msg/String",
+            "request_fields": {"data": "string"},
+        },
+        {
+            "topic_name": "/sensor",
+            "topic_type": "std_msgs/msg/Float32",
+            "request_fields": {"data": "float"},
+        },
     ]
 
 @patch("server.ros2_manager.ServiceNode")

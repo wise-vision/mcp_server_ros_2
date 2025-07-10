@@ -1,16 +1,40 @@
-FROM wisevision/ros_with_wisevision_msgs_and_wisevision_core:humble
+ARG ROS_DISTRO=humble
+FROM wisevision/ros_with_wisevision_msgs_and_wisevision_core:${ROS_DISTRO}
 
-RUN apt-get update && apt-get install -y python3-pip build-essential ca-certificates \
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    build-essential \
+    ca-certificates \
+    ros-${ROS_DISTRO}-std-msgs \
+    ros-${ROS_DISTRO}-geometry-msgs \
+    ros-${ROS_DISTRO}-sensor-msgs \
+    ros-${ROS_DISTRO}-nav-msgs \
+    ros-${ROS_DISTRO}-action-msgs \
+    ros-${ROS_DISTRO}-diagnostic-msgs \
+    ros-${ROS_DISTRO}-trajectory-msgs \
+    ros-${ROS_DISTRO}-visualization-msgs \
+    ros-${ROS_DISTRO}-example-interfaces \
+    ros-${ROS_DISTRO}-rclpy \
+    ros-${ROS_DISTRO}-ros2cli \
+    python3-colcon-common-extensions \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+RUN if [ "$ROS_DISTRO" = "humble" ]; then \
+      pip install uv; \
+    elif [ "$ROS_DISTRO" = "jazzy" ]; then \
+      pip install uv --break-system-packages; \
+    fi
 
 WORKDIR /app
 COPY . /app
 
 RUN uv venv
 
+RUN if [ "$ROS_DISTRO" = "jazzy" ]; then \
+      uv python pin 3.12; \
+    fi
+
 RUN uv sync
 
 ENTRYPOINT []
-CMD ["bash", "-c", "source /opt/ros/humble/setup.bash && source /root/wisevision_ws/install/setup.bash && source .venv/bin/activate && python3 -m server.server"]
+CMD ["bash", "-c", "source /opt/ros/${ROS_DISTRO}/setup.bash && source /root/wisevision_ws/install/setup.bash && source .venv/bin/activate && uv run mcp_ros_2_server"]
