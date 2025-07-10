@@ -503,7 +503,6 @@ class ROS2Manager:
         except Exception as e:
             return {"error": "Failed to publish message due to an internal error."}
 
-
     def shutdown(self):
         try:
             if rclpy.ok():
