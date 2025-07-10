@@ -17,7 +17,6 @@ from starlette.routing import Route, Mount
 from starlette.applications import Starlette
 from starlette.types import Scope, Receive, Send
 
-from mcp.server.sse import SseServerTransport
 from mcp.server.lowlevel.server import Server as BaseServer
 import uvicorn
 import anyio
