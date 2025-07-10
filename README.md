@@ -53,7 +53,6 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
     - Subscribes to a ROS 2 topic and collects messages either for a duration or a message limit.
     - Inputs:
         - `topic_name` (string): Topic name
-        - `msg_type` (string): Message type
         - `duration` (float): How long subscribe topic
         - `message_limit` (int): How many messages collect
         - Default to collect first message, waiting 5 seconds
@@ -87,14 +86,6 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
     - Output:
         - `status`: Status of publication
 
-- **ros2_topic_echo_wait**
-    - Inputs:
-        - `topic_name` (string): Topic name
-        - `message_type` (string): Message type
-        - `timeout` (float): Duration to wait for a message before giving up.
-    - Output:
-        - `message`: The deserialized ROS 2 message, converted to a Python dictionary (via message_to_ordereddict)
-        - `received`: true, indicating the message was successfully received
 
 ## Usage
 
@@ -147,7 +138,7 @@ experience, we strongly recommend using the [MCP Inspector](https://github.com/m
 You can launch the MCP Inspector via [ `npm` ](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
 
 ```bash
-npx @modelcontextprotocol/inspector uv --directory /path/to/mcp_server_ros2 run mcp_server_ros_2
+npx @modelcontextprotocol/inspector uv --directory /path/to/mcp_server_ros2 run mcp_ros_2_server
 ```
 
 Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.

@@ -23,6 +23,10 @@ import time
 from rclpy.task import Future
 from builtin_interfaces.msg import Time, Duration
 from std_msgs.msg import Header
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from rclpy.executors import SingleThreadedExecutor
+
+QOS_DEPTH=1_000
 
 
 class ServiceNode(Node):
@@ -33,6 +37,36 @@ class ServiceNode(Node):
 class ROS2Manager:
     def __init__(self):
         self.node = ServiceNode()
+
+    def get_qos_profile_for_topic(self, topic_name: str) -> QoSProfile:
+        infos = self.node.get_publishers_info_by_topic(topic_name)
+
+        if not infos:
+            raise RuntimeError(f"No publisher found on topic '{topic_name}'.")
+
+        pub_info = infos[0]
+        qos = pub_info.qos_profile
+
+        history = qos.history if qos.history in (
+            HistoryPolicy.KEEP_LAST, HistoryPolicy.KEEP_ALL
+        ) else HistoryPolicy.KEEP_LAST
+
+        depth = QOS_DEPTH
+
+        reliability = qos.reliability if qos.reliability in (
+            ReliabilityPolicy.RELIABLE, ReliabilityPolicy.BEST_EFFORT
+        ) else ReliabilityPolicy.RELIABLE
+
+        durability = qos.durability if qos.durability in (
+            DurabilityPolicy.VOLATILE, DurabilityPolicy.TRANSIENT_LOCAL
+        ) else DurabilityPolicy.VOLATILE
+
+        return QoSProfile(
+            history=history,
+            depth=depth,
+            reliability=reliability,
+            durability=durability
+        )
 
     def list_topics(self):
         topic_names_and_types = self.node.get_topic_names_and_types()
@@ -81,7 +115,7 @@ class ROS2Manager:
                 pkg, kind, name = parts
             elif len(parts) == 2:
                 pkg, name = parts
-                kind = "msg"  # domyślnie zakładamy msg
+                kind = "msg"
             else:
                 return {"error": f"Invalid type format: {ros_type}"}
 
@@ -128,23 +162,47 @@ class ROS2Manager:
         except Exception as e:
             return {"error": str(e)}
 
-    def serialize_msg(msg):
+    def serialize_msg(self, msg):
         try:
-            # Try to extract fields using slots
-            if hasattr(msg, "__slots__"):
-                return {slot: getattr(msg, slot) for slot in msg.__slots__}
-            # Fallback for simple messages like Int32
+            if isinstance(msg, memoryview):
+                try:
+                    return list(msg.cast('d'))
+                except TypeError:
+                    return list(msg)
+
+            elif isinstance(msg, (bytes, bytearray)):
+                return list(msg)
+
+            elif isinstance(msg, (int, float, str, bool)) or msg is None:
+                return msg
+
             elif hasattr(msg, "data"):
-                return {"data": msg.data}
+                return self.serialize_msg(msg.data)
+
+            elif isinstance(msg, (list, tuple)):
+                return [self.serialize_msg(item) for item in msg]
+
+            elif hasattr(msg, "__slots__"):
+                return {
+                    slot: self.serialize_msg(getattr(msg, slot))
+                    for slot in msg.__slots__
+                }
+
+            elif isinstance(msg, dict):
+                return {
+                    key: self.serialize_msg(value)
+                    for key, value in msg.items()
+                }
+
             else:
-                return {"value": str(msg)}
+                return str(msg)
+
         except Exception as e:
             return {"error": f"Failed to serialize message: {str(e)}"}
 
     def subscribe_topic(
         self,
         topic_name: str,
-        msg_type: str,
         duration: Optional[float] = None,
         message_limit: Optional[int] = None,
     ) -> dict:
@@ -153,11 +211,17 @@ class ROS2Manager:
         from rclpy.task import Future
 
         available_topics = self.node.get_topic_names_and_types()
-        topic_names = [name for name, _ in available_topics]
-        if topic_name not in topic_names:
+        topic_map = {name: types for name, types in available_topics}
+        if topic_name not in topic_map:
             return {
-                "error": f"Topic '{topic_name}' not found. Available topics: {topic_names}"
+                "error": f"Topic '{topic_name}' not found. Available topics: {list(topic_map.keys())}"
             }
+
+        types = topic_map[topic_name]
+        if not types:
+            return {"error": f"Topic '{topic_name}' has no associated message types."}
+
+        msg_type = types[0]
 
         # Fallback to avoid infinite wait
         if not duration and not message_limit:
@@ -178,29 +242,35 @@ class ROS2Manager:
         except Exception as e:
             return {"error": f"Failed to import message type: {str(e)}"}
 
+        tmp_node = Node("mcp_subscribe_tmp")
         received = []
         done_future = Future()
+        qos = self.get_qos_profile_for_topic(topic_name)
 
         def callback(msg):
             received.append(msg)
             if message_limit and len(received) >= message_limit:
                 done_future.set_result(True)
 
-        sub = self.node.create_subscription(msg_class, topic_name, callback, 10)
+        tmp_node.create_subscription(msg_class, topic_name, callback, qos)
+        executor = SingleThreadedExecutor(context=tmp_node.context)
+        executor.add_node(tmp_node)
 
         start = time.time()
         try:
             while rclpy.ok() and not done_future.done():
-                rclpy.spin_once(self.node, timeout_sec=0.1)
+                executor.spin_once(timeout_sec=0.1)
                 if duration and (time.time() - start) >= duration:
                     break
         finally:
-            sub.destroy()
+            executor.remove_node(tmp_node)
+            executor.shutdown()
+            tmp_node.destroy_node
 
         elapsed = time.time() - start
 
         return {
-            "messages": [ROS2Manager.serialize_msg(msg) for msg in received],
+            "messages": [self.serialize_msg(msg) for msg in received],
             "count": len(received),
             "duration": round(elapsed, 2),
         }
@@ -433,68 +503,6 @@ class ROS2Manager:
         except Exception as e:
             return {"error": "Failed to publish message due to an internal error."}
 
-    def echo_topic_once(
-        self, topic_name: str, msg_type: str, timeout: float = 5.0
-    ) -> dict:
-        # Validate topic_name
-        if not isinstance(topic_name, str) or not topic_name.strip():
-            return {"error": "Invalid topic name. It must be a non-empty string."}
-
-        # Validate msg_type
-        if not isinstance(msg_type, str) or "/" not in msg_type:
-            return {
-                "error": "Invalid message type. It must be a valid ROS2 message type string."
-            }
-
-        # Validate timeout
-        if not isinstance(timeout, (int, float)) or timeout <= 0:
-            return {"error": "Invalid timeout. It must be a positive number."}
-
-        available_topics = self.node.get_topic_names_and_types()
-        topic_names = [name for name, _ in available_topics]
-        if topic_name not in topic_names:
-            return {
-                "error": f"Topic '{topic_name}' not found. Available: {topic_names}"
-            }
-
-        parts = msg_type.split("/")
-        if len(parts) == 3:
-            pkg, _, msg = parts
-        elif len(parts) == 2:
-            pkg, msg = parts
-        else:
-            return {"error": f"Invalid message type format: {msg_type}"}
-
-        try:
-            module = importlib.import_module(f"{pkg}.msg")
-            msg_class = getattr(module, msg)
-        except Exception as e:
-            return {"error": f"Failed to import message type: {str(e)}"}
-
-        result_future = Future()
-
-        def callback(msg):
-            result_future.set_result(msg)
-
-        sub = self.node.create_subscription(msg_class, topic_name, callback, 10)
-
-        start = time.time()
-        try:
-            while rclpy.ok() and not result_future.done():
-                rclpy.spin_once(self.node, timeout_sec=0.1)
-                if time.time() - start > timeout:
-                    break
-        finally:
-            sub.destroy()
-
-        if result_future.done():
-            msg = result_future.result()
-            return {"message": ROS2Manager.serialize_msg(msg), "received": True}
-        else:
-            return {
-                "error": f"No message received within {timeout} seconds.",
-                "received": False,
-            }
 
     def shutdown(self):
         try:

@@ -50,7 +50,6 @@ add_tool_handler(tools_ros2.ROS2TopicSubscribe())
 add_tool_handler(tools_ros2.ROS2GetMessages())
 add_tool_handler(tools_ros2.ROS2GetMessageFields())
 add_tool_handler(tools_ros2.ROS2TopicPublish())
-add_tool_handler(tools_ros2.ROS2TopicEcho())
 
 
 @app.list_tools()
