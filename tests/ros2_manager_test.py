@@ -218,61 +218,68 @@ def test_subscribe_topic_import_fail(mock_node_cls, mock_import):
 from unittest.mock import patch, MagicMock
 from server.ros2_manager import ROS2Manager
 
+from unittest.mock import MagicMock, patch
+import rclpy
+from server.ros2_manager import ROS2Manager
+
+
 @patch("server.ros2_manager.get_service")
 @patch("server.ros2_manager.get_message")
 @patch("server.ros2_manager.deserialize_message")
-@patch("server.ros2_manager.rclpy.spin_until_future_complete")
-def test_call_get_messages_service_any_success(mock_spin, mock_deserialize, mock_get_msg, mock_get_srv):
+def test_call_get_messages_service_any_success(
+    mock_deserialize, mock_get_msg, mock_get_srv
+):
     try:
         rclpy.init()
-        # Mock the service class
+
         mock_request = MagicMock()
         mock_service = MagicMock()
         mock_service.Request.return_value = mock_request
         mock_get_srv.return_value = mock_service
 
-        # Mock FullDateTime
-        full_datetime_class = MagicMock()
-        mock_get_msg.side_effect = [full_datetime_class, MagicMock()]  # time + message
+        full_datetime_cls = MagicMock()
+        sensor_msg_cls = MagicMock()
+        mock_get_msg.side_effect = [full_datetime_cls, sensor_msg_cls]
 
-        # Fake response with binary data
         fake_msg = MagicMock()
         fake_msg.get_fields_and_field_types.return_value = {"temp": "float"}
+        setattr(fake_msg, "temp", 22.5)
         mock_deserialize.return_value = fake_msg
 
+        payload = b"\x01"
+        length_bytes = len(payload).to_bytes(4, byteorder="big")
         fake_response = MagicMock()
-        fake_response.data = b'\x00\x00\x00\x05hello'  # length 5 + "hello"
-        fake_response.timestamps = [MagicMock()]
-        fake_response.timestamps[0].get_fields_and_field_types.return_value = {"sec": "int32"}
-        setattr(fake_response.timestamps[0], "sec", 12345)
+        fake_response.data = length_bytes + payload
 
-        # Setup fake future
-        mock_future = MagicMock()
-        mock_future.result.return_value = fake_response
-        mock_future.done.return_value = True
+        fake_ts = MagicMock()
+        fake_ts.get_fields_and_field_types.return_value = {"sec": "int32"}
+        setattr(fake_ts, "sec", 12345)
+        fake_response.timestamps = [fake_ts]
 
         mock_client = MagicMock()
         mock_client.wait_for_service.return_value = True
-        mock_client.call_async.return_value = mock_future
+        mock_client.call.return_value = fake_response
 
-        # Replace node + client
         manager = ROS2Manager()
         manager.node.create_client = MagicMock(return_value=mock_client)
 
-        result = manager.call_get_messages_service_any({
-            "topic_name": "sensor_data",
-            "message_type": "my_msgs/msg/SensorData",
-            "number_of_msgs": 1
-        })
+        result = manager.call_get_messages_service_any(
+            {
+                "topic_name": "sensor_data",
+                "message_type": "my_msgs/msg/SensorData",
+                "number_of_msgs": 1,
+            }
+        )
 
         assert "messages" in result
         assert "timestamps" in result
         assert isinstance(result["messages"], list)
         assert isinstance(result["timestamps"], list)
-        assert result["messages"][0] == {"temp": {}}
+        assert result["messages"][0] == {"temp": 22.5}
+        assert result["timestamps"][0]["sec"] == 12345
+
     finally:
         rclpy.shutdown()
-
 
 @patch("server.ros2_manager.ServiceNode")
 @patch("server.ros2_manager.importlib.import_module")

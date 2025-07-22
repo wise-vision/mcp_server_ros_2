@@ -281,89 +281,67 @@ class ROS2Manager:
             raise ImportError("Service type not found for 'GetMessages'")
 
         client = self.node.create_client(service_type, "/get_messages")
-
         if not client.wait_for_service(timeout_sec=3.0):
             return {"error": "Service '/get_messages' not available (timeout)."}
 
         request = service_type.Request()
-        request.topic_name = params.get("topic_name")
-        request.message_type = "any"
-        request.number_of_msgs = params.get("number_of_msgs", 0)
+        request.topic_name      = params.get("topic_name")
+        request.message_type    = "any"
+        request.number_of_msgs  = params.get("number_of_msgs", 0)
 
-        def parse_iso8601_to_fulldatetime(iso8601_str):
+        def parse_iso8601_to_fulldatetime(ts):
             FullDateTime = get_message("lora_msgs/msg/FullDateTime")
-            dt = parser.isoparse(iso8601_str)
-
-            full_datetime = FullDateTime()
-            full_datetime.year = dt.year
-            full_datetime.month = dt.month
-            full_datetime.day = dt.day
-            full_datetime.hour = dt.hour
-            full_datetime.minute = dt.minute
-            full_datetime.second = dt.second
-            full_datetime.nanosecond = dt.microsecond * 1000
-            return full_datetime
+            dt = parser.isoparse(ts)
+            full = FullDateTime()
+            full.year, full.month, full.day = dt.year, dt.month, dt.day
+            full.hour, full.minute, full.second = dt.hour, dt.minute, dt.second
+            full.nanosecond = dt.microsecond * 1000
+            return full
 
         if params.get("time_start"):
             request.time_start = parse_iso8601_to_fulldatetime(params["time_start"])
         if params.get("time_end"):
-            request.time_end = parse_iso8601_to_fulldatetime(params["time_end"])
+            request.time_end   = parse_iso8601_to_fulldatetime(params["time_end"])
 
-        future = client.call(request)
-
-        try:
-            rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
-        except Exception as e:
-            return {"error": f"Exception during spin: {e}"}
-
-        if not future.done():
+        response = client.call(request, timeout_sec=5.0)
+        if response is None:
             return {"error": "Service call timed out"}
 
         try:
-            response = future.result()
-        except Exception as e:
-            return {"error": f"Service call failed: {e}"}
-
-        if not response:
-            return {"error": "Empty response"}
-
-        try:
             MessageType = get_message(params.get("message_type"))
-            messages = []
-            data = response.data
-            offset = 0
+            messages, data, offset = [], response.data, 0
 
             while offset < len(data):
-                message_length = int.from_bytes(data[offset : offset + 4], byteorder="big")
+                length = int.from_bytes(data[offset:offset+4], "big")
                 offset += 4
-                message_data = bytes(data[offset : offset + message_length])
-                offset += message_length
-                message = deserialize_message(message_data, MessageType())
-                messages.append(message)
+                msg_bin = bytes(data[offset:offset+length])
+                offset += length
+                messages.append(deserialize_message(msg_bin, MessageType()))
 
-            def serialize_ros_message(msg):
-                result = {}
-                for field_name, field_type in msg.get_fields_and_field_types().items():
-                    value = getattr(msg, field_name)
-                    if hasattr(value, "get_fields_and_field_types"):
-                        result[field_name] = serialize_ros_message(value)
-                    elif isinstance(value, (list, tuple)):
-                        result[field_name] = [
-                            serialize_ros_message(v) if hasattr(v, "get_fields_and_field_types") else v
-                            for v in value
+            def to_dict(msg):
+                out = {}
+                for f, _ in msg.get_fields_and_field_types().items():
+                    v = getattr(msg, f)
+                    if hasattr(v, "get_fields_and_field_types"):
+                        out[f] = to_dict(v)
+                    elif isinstance(v, (list, tuple)):
+                        out[f] = [
+                            to_dict(x) if hasattr(x, "get_fields_and_field_types") else x
+                            for x in v
                         ]
-                    elif isinstance(value, (np.ndarray, array.array)):
-                        result[field_name] = list(value)
-                    elif isinstance(value, (bytes, bytearray)):
-                        result[field_name] = value.decode("utf-8", errors="ignore")
+                    elif isinstance(v, (np.ndarray, array.array)):
+                        out[f] = list(v)
+                    elif isinstance(v, (bytes, bytearray)):
+                        out[f] = v.decode("utf-8", errors="ignore")
                     else:
-                        result[field_name] = value
-                return result
+                        out[f] = v
+                return out
 
             return {
-                "timestamps": [serialize_ros_message(ts) for ts in response.timestamps],
-                "messages": [serialize_ros_message(msg) for msg in messages],
+                "timestamps": [to_dict(t) for t in response.timestamps],
+                "messages":   [to_dict(m) for m in messages],
             }
+
         except Exception as e:
             return {"error": f"Deserialization error: {e}"}
 
