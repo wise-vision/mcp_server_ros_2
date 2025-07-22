@@ -279,22 +279,19 @@ class ROS2Manager:
         service_type = get_service("lora_msgs/srv/GetMessages")
         if not service_type:
             raise ImportError("Service type not found for 'GetMessages'")
+
         client = self.node.create_client(service_type, "/get_messages")
-        while not client.wait_for_service(timeout_sec=1.0):
-            if not rclpy.ok():
-                raise Exception(
-                    "Interrupted while waiting for the service. ROS shutdown."
-                )
+
+        if not client.wait_for_service(timeout_sec=3.0):
+            return {"error": "Service '/get_messages' not available (timeout)."}
 
         request = service_type.Request()
-        topic_name = params.get("topic_name")
-        request.topic_name = topic_name
+        request.topic_name = params.get("topic_name")
         request.message_type = "any"
         request.number_of_msgs = params.get("number_of_msgs", 0)
 
         def parse_iso8601_to_fulldatetime(iso8601_str):
             FullDateTime = get_message("lora_msgs/msg/FullDateTime")
-
             dt = parser.isoparse(iso8601_str)
 
             full_datetime = FullDateTime()
@@ -305,7 +302,6 @@ class ROS2Manager:
             full_datetime.minute = dt.minute
             full_datetime.second = dt.second
             full_datetime.nanosecond = dt.microsecond * 1000
-
             return full_datetime
 
         if params.get("time_start"):
@@ -313,82 +309,63 @@ class ROS2Manager:
         if params.get("time_end"):
             request.time_end = parse_iso8601_to_fulldatetime(params["time_end"])
 
-        future = client.call_async(request)
+        future = client.call(request)
 
-        rclpy.spin_until_future_complete(self.node, future)
-        if future.done():
-            print("Service call completed")
-        else:
-            print("Service call did not complete within the timeout")
-        response = future.result()
-        if response:
-            try:
-                MessageType = get_message(params.get("message_type"))
-                messages = []
-                data = response.data
-                offset = 0
+        try:
+            rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
+        except Exception as e:
+            return {"error": f"Exception during spin: {e}"}
 
-                while offset < len(data):
-                    message_length = int.from_bytes(
-                        data[offset : offset + 4], byteorder="big"
-                    )
-                    offset += 4
+        if not future.done():
+            return {"error": "Service call timed out"}
 
-                    message_data = bytes(data[offset : offset + message_length])
-                    offset += message_length
+        try:
+            response = future.result()
+        except Exception as e:
+            return {"error": f"Service call failed: {e}"}
 
-                    message = deserialize_message(message_data, MessageType())
-                    messages.append(message)
+        if not response:
+            return {"error": "Empty response"}
 
-                def serialize_ros_message(msg):
-                    result = {}
-                    for (
-                        field_name,
-                        field_type,
-                    ) in msg.get_fields_and_field_types().items():
-                        value = getattr(msg, field_name)
+        try:
+            MessageType = get_message(params.get("message_type"))
+            messages = []
+            data = response.data
+            offset = 0
 
-                        if hasattr(value, "get_fields_and_field_types"):
-                            result[field_name] = serialize_ros_message(value)
-                        elif isinstance(value, list):
-                            serialized_list = []
-                            for item in value:
-                                if hasattr(item, "get_fields_and_field_types"):
-                                    serialized_list.append(serialize_ros_message(item))
-                                elif isinstance(item, (array.array, tuple)):
-                                    serialized_list.append(list(item))
-                                else:
-                                    serialized_list.append(item)
-                            result[field_name] = serialized_list
-                        elif isinstance(value, (array.array, tuple)):
-                            result[field_name] = list(value)
-                        elif isinstance(value, np.ndarray):
-                            result[field_name] = value.tolist()
-                        elif isinstance(value, (bytes, bytearray)):
-                            result[field_name] = value.decode("utf-8", errors="ignore")
-                        elif isinstance(value, (int, float, str, bool)):
-                            result[field_name] = value
-                        else:
-                            print(
-                                f"Unsupported type for JSON serialization: {field_name} of type {type(value)}"
-                            )
-                            result[field_name] = str(value)
+            while offset < len(data):
+                message_length = int.from_bytes(data[offset : offset + 4], byteorder="big")
+                offset += 4
+                message_data = bytes(data[offset : offset + message_length])
+                offset += message_length
+                message = deserialize_message(message_data, MessageType())
+                messages.append(message)
 
-                    return result
+            def serialize_ros_message(msg):
+                result = {}
+                for field_name, field_type in msg.get_fields_and_field_types().items():
+                    value = getattr(msg, field_name)
+                    if hasattr(value, "get_fields_and_field_types"):
+                        result[field_name] = serialize_ros_message(value)
+                    elif isinstance(value, (list, tuple)):
+                        result[field_name] = [
+                            serialize_ros_message(v) if hasattr(v, "get_fields_and_field_types") else v
+                            for v in value
+                        ]
+                    elif isinstance(value, (np.ndarray, array.array)):
+                        result[field_name] = list(value)
+                    elif isinstance(value, (bytes, bytearray)):
+                        result[field_name] = value.decode("utf-8", errors="ignore")
+                    else:
+                        result[field_name] = value
+                return result
 
-                serialized_response = {
-                    "timestamps": [
-                        serialize_ros_message(timestamp)
-                        for timestamp in response.timestamps
-                    ],
-                    "messages": [serialize_ros_message(msg) for msg in messages],
-                }
-
-                return serialized_response
-            except Exception as e:
-                raise Exception(f"Message deserialization error:” {e}")
-        else:
-            return None
+            return {
+                "timestamps": [serialize_ros_message(ts) for ts in response.timestamps],
+                "messages": [serialize_ros_message(msg) for msg in messages],
+            }
+        except Exception as e:
+            return {"error": f"Deserialization error: {e}"}
 
     def fill_ros_message(self, msg_class, data):
         msg = msg_class()

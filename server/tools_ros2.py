@@ -216,7 +216,7 @@ class ROS2GetMessages(toolhandler.ToolHandler):
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="""Calls the ROS2 '/get_messages' service to retrieve past messages from a topic.""",
+            description="""Calls the ROS2 ‘/get_messages’ service to retrieve past messages from a topic for data which is stored in InfluxDB.""",
             inputSchema={
                 "type": "object",
                 "properties": {
