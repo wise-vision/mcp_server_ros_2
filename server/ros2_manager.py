@@ -27,7 +27,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from rclpy.executors import SingleThreadedExecutor
 
 QOS_DEPTH=1_000
-
+SUBCRIPTION_DURATION_TIME=5.0
 
 class ServiceNode(Node):
     def __init__(self):
@@ -162,7 +162,7 @@ class ROS2Manager:
         except Exception as e:
             return {"error": str(e)}
 
-    def serialize_msg(self, msg):
+    def serialize_msg(self, msg: Any) -> Any:
         try:
             if isinstance(msg, memoryview):
                 try:
@@ -225,7 +225,7 @@ class ROS2Manager:
 
         # Fallback to avoid infinite wait
         if not duration and not message_limit:
-            duration = 5.0  # default duration in seconds
+            duration = SUBCRIPTION_DURATION_TIME  # default duration in seconds
 
         # Dynamically load message class
         parts = msg_type.split("/")
@@ -265,7 +265,7 @@ class ROS2Manager:
         finally:
             executor.remove_node(tmp_node)
             executor.shutdown()
-            tmp_node.destroy_node
+            tmp_node.destroy_node()
 
         elapsed = time.time() - start
 
