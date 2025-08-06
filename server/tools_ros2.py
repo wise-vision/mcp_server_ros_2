@@ -8,6 +8,7 @@
 #  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
 from collections.abc import Sequence
+from typing import Optional
 from mcp.types import (
     Tool,
     TextContent,
@@ -166,19 +167,15 @@ class ROS2TopicSubscribe(toolhandler.ToolHandler):
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="""Subscribe to a ROS 2 topic by name and message type, collecting messages for a given time or count limit.
-            Before **every** use of this tool, the agent must call 'ros2_topic_list' and 'ros2_interface_list'
-            o ensure it has the latest available topics and message types.""",
+            description="""Subscribe to a ROS 2 topic by name collecting messages for a given time or count limit.
+            Before **every** use of this tool, the agent must call 'ros2_topic_list'
+            to ensure it has the latest available topics""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "topic_name": {
                         "type": "string",
                         "description": "Name of the topic to subscribe to",
-                    },
-                    "message_type": {
-                        "type": "string",
-                        "description": "Full ROS 2 message type, e.g., 'std_msgs/msg/String'",
                     },
                     "duration": {
                         "type": "number",
@@ -196,7 +193,6 @@ class ROS2TopicSubscribe(toolhandler.ToolHandler):
     def run_tool(self, args: dict) -> Sequence[TextContent | EmbeddedResource]:
 
         topic_name = args.get("topic_name")
-        message_type = args.get("message_type")
         duration = args.get("duration")
         message_limit = args.get("message_limit")
         if duration == "":
@@ -206,7 +202,7 @@ class ROS2TopicSubscribe(toolhandler.ToolHandler):
 
         ros = get_ros()
         messages = ros.subscribe_topic(
-            topic_name, message_type, duration, message_limit
+            topic_name, duration, message_limit
         )
 
         return [TextContent(type="text", text=json.dumps(messages, indent=2))]
@@ -220,7 +216,7 @@ class ROS2GetMessages(toolhandler.ToolHandler):
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="""Calls the ROS2 '/get_messages' service to retrieve past messages from a topic.""",
+            description="""Calls the ROS2 ‘/get_messages’ service to retrieve past messages from a topic for data which is stored in InfluxDB.""",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -339,49 +335,3 @@ class ROS2TopicPublish(toolhandler.ToolHandler):
         ros = get_ros()
         publish_to_topic = ros.publish_to_topic(topic_name, message_type, data)
         return [TextContent(type="text", text=json.dumps(publish_to_topic, indent=2))]
-
-
-class ROS2TopicEcho(toolhandler.ToolHandler):
-    def __init__(self):
-        super().__init__("ros2_topic_echo_wait")
-
-    def get_tool_description(self):
-        return Tool(
-            name=self.name,
-            description="""Waits for a single message from a ROS 2 topic and return its contents.
-            Before **every** use of this tool, the agent must call 'ros2_topic_list' and 'ros2_interface_list'
-            to ensure it has the latest list of available topics and message types.""",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "topic_name": {
-                        "type": "string",
-                        "description": "Name of the topic to listen to",
-                    },
-                    "message_type": {
-                        "type": "string",
-                        "description": "Full ROS 2 message type, e.g., 'std_msgs/msg/String'",
-                    },
-                    "timeout": {
-                        "type": "number",
-                        "description": "Maximum time to wait for a message in seconds",
-                        "default": 5.0,
-                    },
-                },
-                "required": ["topic_name", "message_type"],
-            },
-        )
-
-    def run_tool(self, args: dict) -> Sequence[TextContent | EmbeddedResource]:
-
-        topic_name = args.get("topic_name")
-        message_type = args.get("message_type")
-        timeout = args.get("timeout")
-        if timeout in [None, "", "null", "undefined"]:
-            timeout = 5.0
-
-        ros = get_ros()
-        echo_topic_response = ros.echo_topic_once(topic_name, message_type, timeout)
-        return [
-            TextContent(type="text", text=json.dumps(echo_topic_response, indent=2))
-        ]
