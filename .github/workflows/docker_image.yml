@@ -43,6 +43,8 @@ jobs:
     strategy:
       matrix:
         ros_distro: [humble, jazzy]
+    container:
+      image: ubuntu:22.04
 
     steps:
       - name: Checkout repository
@@ -111,6 +113,8 @@ jobs:
     strategy:
       matrix:
         ros_distro: [humble, jazzy]
+    container:
+      image: ubuntu:22.04
 
     steps:
       - name: Install Docker CLI
