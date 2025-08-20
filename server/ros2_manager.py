@@ -23,8 +23,10 @@ import time
 from rclpy.task import Future
 from builtin_interfaces.msg import Time, Duration
 from std_msgs.msg import Header
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from rclpy.executors import SingleThreadedExecutor
+from rclpy.qos import QoSDurabilityPolicy
+from rclpy.qos import QoSPresetProfiles
+from rclpy.qos import QoSReliabilityPolicy
 
 QOS_DEPTH=1_000
 SUBCRIPTION_DURATION_TIME=5.0
@@ -38,35 +40,50 @@ class ROS2Manager:
     def __init__(self):
         self.node = ServiceNode()
 
-    def get_qos_profile_for_topic(self, topic_name: str) -> QoSProfile:
-        infos = self.node.get_publishers_info_by_topic(topic_name)
+    def get_qos_profile_for_topic(self, node, topic_name: str):
 
-        if not infos:
-            raise RuntimeError(f"No publisher found on topic '{topic_name}'.")
+        qos_profile = QoSPresetProfiles.SYSTEM_DEFAULT.value 
+        reliability_reliable_endpoints_count = 0
+        durability_transient_local_endpoints_count = 0
 
-        pub_info = infos[0]
-        qos = pub_info.qos_profile
+        pubs_info = node.get_publishers_info_by_topic(topic_name)
+        publishers_count = len(pubs_info)
+        if publishers_count == 0:
+            return qos_profile
 
-        history = qos.history if qos.history in (
-            HistoryPolicy.KEEP_LAST, HistoryPolicy.KEEP_ALL
-        ) else HistoryPolicy.KEEP_LAST
+        for info in pubs_info:
+            if (info.qos_profile.reliability == QoSReliabilityPolicy.RELIABLE):
+                reliability_reliable_endpoints_count += 1
+            if (info.qos_profile.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL):
+                durability_transient_local_endpoints_count += 1
 
-        depth = QOS_DEPTH
+        # If all endpoints are reliable, ask for reliable
+        if reliability_reliable_endpoints_count == publishers_count:
+            qos_profile.reliability = QoSReliabilityPolicy.RELIABLE
+        else:
+            if reliability_reliable_endpoints_count > 0:
+                print(
+                    'Some, but not all, publishers are offering '
+                    'QoSReliabilityPolicy.RELIABLE. Falling back to '
+                    'QoSReliabilityPolicy.BEST_EFFORT as it will connect '
+                    'to all publishers'
+                )
+            qos_profile.reliability = QoSReliabilityPolicy.BEST_EFFORT
 
-        reliability = qos.reliability if qos.reliability in (
-            ReliabilityPolicy.RELIABLE, ReliabilityPolicy.BEST_EFFORT
-        ) else ReliabilityPolicy.RELIABLE
+        # If all endpoints are transient_local, ask for transient_local
+        if durability_transient_local_endpoints_count == publishers_count:
+            qos_profile.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        else:
+            if durability_transient_local_endpoints_count > 0:
+                print(
+                    'Some, but not all, publishers are offering '
+                    'QoSDurabilityPolicy.TRANSIENT_LOCAL. Falling back to '
+                    'QoSDurabilityPolicy.VOLATILE as it will connect '
+                    'to all publishers'
+                )
+            qos_profile.durability = QoSDurabilityPolicy.VOLATILE
 
-        durability = qos.durability if qos.durability in (
-            DurabilityPolicy.VOLATILE, DurabilityPolicy.TRANSIENT_LOCAL
-        ) else DurabilityPolicy.VOLATILE
-
-        return QoSProfile(
-            history=history,
-            depth=depth,
-            reliability=reliability,
-            durability=durability
-        )
+        return qos_profile
 
     def list_topics(self):
         topic_names_and_types = self.node.get_topic_names_and_types()
@@ -245,7 +262,7 @@ class ROS2Manager:
         tmp_node = Node("mcp_subscribe_tmp")
         received = []
         done_future = Future()
-        qos = self.get_qos_profile_for_topic(topic_name)
+        qos = self.get_qos_profile_for_topic(tmp_node, topic_name)
 
         def callback(msg):
             received.append(msg)
