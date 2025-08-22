@@ -91,42 +91,30 @@ def test_list_services_empty(mock_node_cls):
 
     assert result == []
 
-@patch("server.ros2_manager.ServiceNode")
-@patch("server.ros2_manager.importlib.import_module")
+from example_interfaces.srv import AddTwoInts
+
+@patch("server.ros2_manager.ServiceNode") 
 @patch("server.ros2_manager.rclpy.spin_until_future_complete")
-def test_call_service_success(mock_spin, mock_import, mock_node_cls):
+def test_call_service_success_real_type(mock_spin, mock_node_cls):
     try:
         if not rclpy.ok():
             rclpy.init()
 
-        # Set up the fake node to be injected
         mock_node = MagicMock()
-        mock_node_cls.return_value = mock_node  # this replaces ServiceNode()
+        mock_node_cls.return_value = mock_node
 
-        manager = ROS2Manager()  # <- teraz to działa, bo node jest podmieniony!
+        manager = ROS2Manager()
 
-        # Mock service class
-        mock_srv_class = MagicMock()
-        mock_request_instance = MagicMock()
-        mock_srv_class.Request.return_value = mock_request_instance
-        mock_srv_class.Request.get_fields_and_field_types.return_value = {"a": "int64", "b": "int64"}
-
-        # Mock import of service module
-        mock_module = MagicMock()
-        mock_module.AddTwoInts = mock_srv_class
-        mock_import.return_value = mock_module
-
-        # Setup mock client + future
         mock_client = MagicMock()
         mock_client.wait_for_service.return_value = True
         mock_future = MagicMock()
-        mock_future.result.return_value = MagicMock()
-        mock_client.call_async.return_value = mock_future
 
-        # Inject the mock client into the node
+        resp = AddTwoInts.Response()
+        resp.sum = 8
+        mock_future.result.return_value = resp
+        mock_client.call_async.return_value = mock_future
         mock_node.create_client.return_value = mock_client
 
-        # Call actual method
         result = manager.call_service(
             service_name="/add_two_ints",
             service_type="example_interfaces/srv/AddTwoInts",
@@ -282,33 +270,33 @@ def test_call_get_messages_service_any_success(
         rclpy.shutdown()
 
 @patch("server.ros2_manager.ServiceNode")
-@patch("server.ros2_manager.importlib.import_module")
-def test_publish_to_topic_success(mock_import, mock_node_cls):
-    mock_node = MagicMock()
-    mock_node_cls.return_value = mock_node
+def test_publish_to_topic_string_no_type_mocks(mock_node_cls):
+    from std_msgs.msg import String
 
-    class FakeMsg:
-        __slots__ = ["data"]
-        def __init__(self):
-            self.data = None
+    try:
+        if not rclpy.ok():
+            rclpy.init()
 
-    fake_module = MagicMock()
-    fake_module.String = FakeMsg
-    mock_import.return_value = fake_module
+        mock_node = MagicMock()
+        mock_node_cls.return_value = mock_node
 
-    manager = ROS2Manager()
-    manager.node = mock_node
+        manager = ROS2Manager()
 
-    mock_publisher = MagicMock()
-    mock_node.create_publisher.return_value = mock_publisher
+        mock_publisher = MagicMock()
+        mock_node.create_publisher.return_value = mock_publisher
 
-    result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", {"data": "Hello"})
+        result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", {"data": "Hello"})
 
-    assert result["status"] == "published"
-    assert result["data"] == {"data": "Hello"}
-    mock_publisher.publish.assert_called_once()
-    published_msg = mock_publisher.publish.call_args[0][0]
-    assert published_msg.data == "Hello"
+        assert result["status"] == "published"
+        mock_node.create_publisher.assert_called_once()
+        mock_publisher.publish.assert_called_once()
+
+        published_msg = mock_publisher.publish.call_args[0][0]
+        assert isinstance(published_msg, String)
+        assert published_msg.data == "Hello"
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
 
 @patch("server.ros2_manager.ServiceNode")
 def test_publish_to_topic_invalid_topic_name(mock_node_cls):
@@ -330,3 +318,80 @@ def test_publish_to_topic_invalid_data(mock_node_cls):
     result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", "invalid_data")
     assert "error" in result
     assert result["error"] == "Invalid data. It must be a dictionary."
+
+
+@patch("server.ros2_manager.ServiceNode")
+@patch("server.ros2_manager.rclpy.spin_until_future_complete")
+def test_mavros_waypoint_push_int_to_float_no_type_mocks(mock_spin, mock_node_cls):
+    from mavros_msgs.srv import WaypointPush
+    from mavros_msgs.msg import Waypoint
+
+    try:
+        if not rclpy.ok():
+            rclpy.init()
+
+        mock_node = MagicMock()
+        mock_node_cls.return_value = mock_node
+
+        manager = ROS2Manager()
+
+        mock_client = MagicMock()
+        mock_client.wait_for_service.return_value = True
+        mock_future = MagicMock()
+
+        resp = WaypointPush.Response()
+        resp.success = True
+        resp.wp_transfered = 3
+        mock_future.result.return_value = resp
+        mock_client.call_async.return_value = mock_future
+        mock_node.create_client.return_value = mock_client
+
+        fields = {
+            "start_index": 0,
+            "waypoints": [
+                {
+                    "frame": 3, "command": 22, "is_current": True, "autocontinue": True,
+                    "param1": 0, "param2": 0, "param3": 0, "param4": 0,
+                    "x_lat": 0, "y_long": 0, "z_alt": 7
+                },
+                {
+                    "frame": 3, "command": 16, "is_current": False, "autocontinue": True,
+                    "param1": 0, "param2": 0, "param3": 0, "param4": 0,
+                    "x_lat": 52.43304071995481, "y_long": 20.72276917967427, "z_alt": 7
+                },
+                {
+                    "frame": 3, "command": 20, "is_current": False, "autocontinue": True,
+                    "param1": 0, "param2": 0, "param3": 0, "param4": 0,
+                    "x_lat": 0, "y_long": 0, "z_alt": 0
+                }
+            ]
+        }
+
+        result = manager.call_service(
+            service_name="/mavros/mission/push",
+            service_type="mavros_msgs/srv/WaypointPush",
+            fields=fields
+        )
+
+        assert "result" in result
+        mock_client.wait_for_service.assert_called_once()
+        mock_client.call_async.assert_called_once()
+
+        sent_req = mock_client.call_async.call_args[0][0]
+        assert isinstance(sent_req, WaypointPush.Request)
+        assert isinstance(sent_req.start_index, int) and sent_req.start_index == 0
+        assert isinstance(sent_req.waypoints, list) and len(sent_req.waypoints) == 3
+        assert all(isinstance(w, Waypoint) for w in sent_req.waypoints)
+
+        wp0 = sent_req.waypoints[0]
+        assert isinstance(wp0.x_lat, float) and wp0.x_lat == 0.0
+        assert isinstance(wp0.y_long, float) and wp0.y_long == 0.0
+        assert isinstance(wp0.z_alt, float) and wp0.z_alt == 7.0
+        assert isinstance(wp0.param1, float) and wp0.param1 == 0.0
+
+        wp1 = sent_req.waypoints[1]
+        assert isinstance(wp1.z_alt, float) and wp1.z_alt == 7.0
+
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
