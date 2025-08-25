@@ -16,6 +16,7 @@ from typing import Any, Optional
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py import get_interfaces
 from rosidl_runtime_py.utilities import get_service, get_message
+from rosidl_runtime_py.set_message import set_message_fields
 from dateutil import parser
 import numpy as np
 import array
@@ -168,7 +169,8 @@ class ROS2Manager:
             if not client.wait_for_service(timeout_sec=3.0):
                 return {"error": f"Service '{service_name}' not available (timed out)."}
 
-            request = self.fill_ros_message(srv_class.Request, fields)
+            request = srv_class.Request()
+            set_message_fields(request, fields) 
 
             future = client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future)
@@ -362,81 +364,6 @@ class ROS2Manager:
         except Exception as e:
             return {"error": f"Deserialization error: {e}"}
 
-    def fill_ros_message(self, msg_class, data):
-        msg = msg_class()
-        for key, value in data.items():
-            if not hasattr(msg, key):
-                raise AttributeError(f"{msg_class} has no field '{key}'")
-
-            attr = getattr(msg, key)
-            expected_type = type(attr)
-
-            # Support for nested messages
-            if hasattr(expected_type, "__slots__") and isinstance(value, dict):
-                setattr(msg, key, self.fill_ros_message(expected_type, value))
-
-            # List handling
-            elif isinstance(attr, list) and isinstance(value, list):
-                # List of simple type elements
-                if not attr:
-                    setattr(msg, key, value)
-                else:
-                    sub_type = type(attr[0])
-                    filled_list = []
-                    for v in value:
-                        if hasattr(sub_type, "__slots__") and isinstance(v, dict):
-                            filled_list.append(self.fill_ros_message(sub_type, v))
-                        else:
-                            filled_list.append(self._coerce_type(v, sub_type))
-                    setattr(msg, key, filled_list)
-
-            # Special type: Time / Duration
-            elif isinstance(attr, (Time, Duration)) and isinstance(value, dict):
-                setattr(
-                    msg,
-                    key,
-                    expected_type(
-                        sec=value.get("sec", 0), nanosec=value.get("nanosec", 0)
-                    ),
-                )
-
-            # Header
-            elif isinstance(attr, Header) and isinstance(value, dict):
-                header = Header()
-                if "frame_id" in value:
-                    header.frame_id = value["frame_id"]
-                if "stamp" in value:
-                    stamp_data = value["stamp"]
-                    header.stamp = Time(
-                        sec=stamp_data.get("sec", 0),
-                        nanosec=stamp_data.get("nanosec", 0),
-                    )
-                setattr(msg, key, header)
-
-            # Simple types: float, int, bool, str
-            else:
-                coerced = self._coerce_type(value, expected_type)
-                setattr(msg, key, coerced)
-
-        return msg
-
-    def _coerce_type(self, value, expected_type):
-        try:
-            if expected_type == float and not isinstance(value, float):
-                return float(value)
-            elif expected_type == int and not isinstance(value, int):
-                return int(value)
-            elif expected_type == bool and not isinstance(value, bool):
-                return bool(value)
-            elif expected_type == str and not isinstance(value, str):
-                return str(value)
-            else:
-                return value
-        except Exception as e:
-            raise ValueError(
-                f"Cannot convert value '{value}' to type '{expected_type}': {e}"
-            )
-
     def publish_to_topic(self, topic_name: str, message_type: str, data: dict) -> dict:
         # Validate topic_name
         if not isinstance(topic_name, str) or not topic_name.strip():
@@ -468,7 +395,8 @@ class ROS2Manager:
 
         try:
             pub = self.node.create_publisher(msg_class, topic_name, 10)
-            msg_instance = self.fill_ros_message(msg_class, data)
+            msg_instance = msg_class()
+            set_message_fields(msg_instance, data)
             pub.publish(msg_instance)
 
             return {"status": "published", "data": data}
