@@ -1,6 +1,8 @@
 
 # WiseVision ROS2 MCP Server
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord)](https://discord.gg/9aSw6HbUaw)
+
 Python server implementing Model Context Protocol (MCP) for ROS2.
 
 ![Demo](docs/assets/mcp-ros2-server.gif)
