@@ -1,8 +1,21 @@
 
 # WiseVision ROS2 MCP Server
 
-Python server implementing Model Context Protocol (MCP) for ROS2.
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord)](https://discord.gg/9aSw6HbUaw)
+![ROS 2 Humble](https://img.shields.io/badge/ROS2-Humble-blue)
+![ROS 2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-purple)
+[![Pro Version](https://img.shields.io/badge/Pro%20Version-Upgrade-gold)](https://app.easy.tools/ec/wisevision/wisevision-mcp-ros-2-pro)
 
+![Flow graph](docs/assets/flow-graph.gif)
+
+**Python** server implementing **Model Context Protocol (MCP)** for **ROS2**.
+
+🚀 **Enjoying this project?**  
+You’re welcome to try the **Pro version** with extra features and priority support.  
+👉 [Get Pro here](https://app.easy.tools/ec/wisevision/wisevision-mcp-ros-2-pro)
+
+
+# Real-world examples:
 ![Demo](docs/assets/mcp-ros2-server.gif)
 
 # Features
@@ -18,73 +31,25 @@ Python server implementing Model Context Protocol (MCP) for ROS2.
 
 **Note:** To call service with custom service source it before start server.
 
-## API
 
-### Tools
+### 🔧 ROS 2 Tools
 
-- **ros2_topic_list**
-    - Retrun list of available topics
-    - Output:
-        - `topic_name` (string): Topic name
-        - `topic_type` (string): Message topic type
+#### 📋 **Topics**
+| Tool | Description | Inputs | Outputs |
+|------|-------------|--------|---------|
+| **`ros2_topic_list`** | Returns list of available topics | – | `topic_name` (string): Topic name <br> `topic_type` (string): Message type |
+| **`ros2_topic_subscribe`** | Subscribes to a ROS 2 topic and collects messages for a duration or message limit | `topic_name` (string) <br> `duration` (float) <br> `message_limit` (int) <br> *(defaults: first msg, 5s)* | `messages` <br> `count` <br> `duration` |
+| **`ros2_get_messages`** | Retrieves past messages from a topic (data black box) | `topic_name` (string) <br> `message_type` (string) <br> `number_of_msg` (int) <br> `time_start` (str) <br> `time_end` (str) | `timestamps` <br> `messages` |
+| **`ros2_get_message_fields`** | Gets field names and types for a message type | `message_type` (string) | Field names + types |
+| **`ros2_topic_publish`** | Publishes message to a topic | `topic_name` (string) <br> `message_type` (string) <br> `data` (dict) | `status` |
 
-- **ros2_service_list**
-    - Retruns list available services
-    - Output:
-        - `service_name` (string): Service name
-        - `service_type` (string): Service type
-        - `request_fields` (string array): Fields in service
+---
 
-- **ros2_service_call**
-    - Call ros2 service
-    - Inputs:
-        - `service_name` (string): Service name
-        - `service_type` (string): Service type
-        - `fields` (string array): Fields in service request filled with user data
-        - `force_call` (bool): Force service call without every field in service field up, Default set to false
-    - Output:
-        - `result` (string): Return result of the service call
-        - `error` (string): Return error in case of error
-    - Features:
-        - Check if service exists
-        - Check if every field in service is provide
-
-- **ros2_topic_subscribe**
-    - Subscribes to a ROS 2 topic and collects messages either for a duration or a message limit.
-    - Inputs:
-        - `topic_name` (string): Topic name
-        - `duration` (float): How long subscribe topic
-        - `message_limit` (int): How many messages collect
-        - Default to collect first message, waiting 5 seconds
-    - Output:
-        - `messages`: Serialized messages from topic
-        - `count`: Number of collected messages
-        - `duration`: How long messages has been collected
-
-- **ros2_get_messages**
-    - Inputs:
-        - `topic_name` (string): Topic name
-        - `message_type` (string): Message type
-        - `number_of_msg`(int): How many messages get from data black box
-        - `time_start` (str): Start time for data retrieval. Only messages with timestamps after this will be returned
-        - `time_end` (str):  End time for data retrieval. Only messages with timestamps before this will be returned
-    - Output:
-        - `timestamps`: Time values used to indicate when each message was created, recorded, or received. Typically represented as ISO 8601 strings or UNIX epoch times. Used for filtering, ordering, and synchronizing data.
-        - `messages`: Individual units of published data in ROS 2 topics. Each message contains a structured payload defined by its message type (e.g., `std_msgs/msg/String`).
-
-- **ros2_get_message_fields**
-    - Inputs:
-        - `message_type` (string): Message type
-    - Output:
-        - Returns the field names and types for a given ROS 2 message request type
-
-- **ros2_topic_publish**
-    - Inputs:
-        - `topic_name` (string): Topic name
-        - `message_type` (string): Message type
-        - `data` (dict): Dictionary with message fields
-    - Output:
-        - `status`: Status of publication
+#### 🛠 **Services**
+| Tool | Description | Inputs | Outputs |
+|------|-------------|--------|---------|
+| **`ros2_service_list`** | Returns list of available services | – | `service_name` (string) <br> `service_type` (string) <br> `request_fields` (array) |
+| **`ros2_service_call`** | Calls a ROS 2 service | `service_name` (string) <br> `service_type` (string) <br> `fields` (array) <br> `force_call` (bool, default: false) | `result` (string) <br> `error` (string, if any) |
 
 
 ## Usage
