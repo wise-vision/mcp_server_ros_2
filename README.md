@@ -58,9 +58,6 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 > [!NOTE]
 > The server is running inside a Docker container as the root user. To communicate with other ROS components, they must also be run as root.
 
-> [!NOTE]
-> Due to this [issue](https://github.com/microsoft/vscode-copilot-release/issues/7505), this MCP server doesn't work with Copilot in Visual Studio Code.
-
 **Docker run**
 
 Set MCP setting to mcp.json.
