@@ -55,8 +55,6 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 ## Usage
 
 ### MCP Server Configuration
-> [!NOTE]
-> The server is running inside a Docker container as the root user. To communicate with other ROS components, they must also be run as root.
 
 **Docker run**
 
