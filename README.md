@@ -66,7 +66,7 @@ Set MCP setting to mcp.json.
         "run",
         "-i",
         "--rm",
-        "wisevision/mcp_server_ros_2"
+        "wisevision/mcp_server_ros_2:<humble/jazzy>"
     ],
     }
 
@@ -76,7 +76,7 @@ Set MCP setting to mcp.json.
 ```bash
 git clone https://github.com/wise-vision/mcp_server_ros_2.git
 cd mcp_server_ros_2
-docker build -t wisevision/mcp_server_ros_2 .
+docker build -t mcp_server_ros_2:<humble/jazzy>  --build-arg ROS_DISTRO=<humble/jazzy> .
 ```
 
 
