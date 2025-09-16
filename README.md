@@ -4,6 +4,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord)](https://discord.gg/9aSw6HbUaw)
 ![ROS 2 Humble](https://img.shields.io/badge/ROS2-Humble-blue)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-purple)
+[![Docker](https://img.shields.io/badge/Docker-MCP-blue?logo=docker)](https://hub.docker.com/mcp/server/ros2/overview)
 [![Pro Version](https://img.shields.io/badge/Pro%20Version-Upgrade-gold)](https://app.easy.tools/ec/wisevision/wisevision-mcp-ros-2-pro)
 
 ![Flow graph](docs/assets/flow-graph.gif)
