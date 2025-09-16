@@ -14,7 +14,8 @@ A **Python** implementation of the **Model Context Protocol (MCP)** for **ROS2**
 **Save hours of development time** with native AI integration for your ROS2 projects:
 
 - **⚡ 1-minute setup** - World's easiest ROS2 MCP configuration
-- **💯 99% ROS2 compatibility** - Works with almost all ROS2 commands and message types  
+- **0️⃣ Zero-friction setup** - stdio transport, no brokers, no webserver.
+- **🔌 Auto-discovery** - a built-in “list interfaces” tool dynamically enumerates available topics and services together with their message/service definitions (fields, types, schema) — so the client always knows exactly what data can be published or called. 
 - **🤖 AI-powered debugging** - Let AI help you troubleshoot ROS2 issues in real-time
 - **📊 Smart data analysis** - Query your robot's sensor data using natural language
 - **🚀 Boost productivity** - Control robots, analyze logs, and debug issues through AI chat
@@ -46,11 +47,11 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 
 # ⚙️ Installation
 
-Follow the [installation guide](docs/setup.md) for step-by-step instructions:
-- [🧩 Install in Visual Studio Code Copilot](docs/setup.md#configure-visual-studio-code-copilot)
-- [🤖 Install in Claude Desktop](docs/setup.md#configure-claude-desktop)
-- [💻 Install in Warp](docs/setup.md#configure-warp)
-- [🐳 Build Docker Image locally](docs/setup.md#build-docker-image-locally)
+Follow the [installation guide](installation/README.md) for step-by-step instructions:
+- [🧩 Install in Visual Studio Code Copilot](installation/README.md#configure-visual-studio-code-copilot)
+- [🤖 Install in Claude Desktop](installation/README.md#configure-claude-desktop)
+- [💻 Install in Warp](installation/README.md#configure-warp)
+- [🐳 Build Docker Image locally](installation/README.md#build-docker-image-locally)
 
 
 

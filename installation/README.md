@@ -15,11 +15,15 @@ Before you begin, ensure you have the following:
 
 1. Click on the `tools` icon
 2. Click on the `MCP` icon
-![Go to settings](assets/vscode_add_mcp_1.png)
+![Go to settings](../docs/assets/vscode_add_mcp_1.png)
+
 3. Choose type of the MCP server as `Docker Image`
-![Choose docker](assets/vscode_add_mcp_2.png)
+
+![Choose docker](../docs/assets/vscode_add_mcp_2.png)
+
 4. Enter the name of the image `mcp/ros2`
-![Enter image name](assets/vscode_add_mcp_3.png)
+
+![Enter image name](../docs/assets/vscode_add_mcp_3.png)
 
 ## Configure Claude Desktop
 
@@ -36,7 +40,8 @@ Before you begin, ensure you have the following:
 1. ⁠Open `Claude` and navigate to the settings.
 2. ⁠In the settings menu, select ⁠ `Developer ⁠ from the sidebar.
 3. Click on the `Edit config` in `local MCP servers`.
-![Enter image name](assets/claude_add_mcp.png)
+
+![Enter image name](../docs/assets/claude_add_mcp.png)
 4. Paste it into this config:
 ```json
 {
@@ -88,7 +93,7 @@ docker build -t wisevision/mcp_server_ros_2 .
 3. ⁠Scroll down to the ⁠ MCP Servers ⁠ section.
 4. ⁠Click on ⁠ Add ⁠ to create a new server configuration.
 
-![Add MCP Server](assets/warp_add_mcp.png)
+![Add MCP Server](../docs/assets/warp_add_mcp.png)
 
 
 ### Step 3: Add MCP Server
