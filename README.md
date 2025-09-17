@@ -4,21 +4,35 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord)](https://discord.gg/9aSw6HbUaw)
 ![ROS 2 Humble](https://img.shields.io/badge/ROS2-Humble-blue)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-purple)
+[![Docker](https://img.shields.io/badge/Docker-MCP-blue?logo=docker)](https://hub.docker.com/mcp/server/ros2/overview)
 [![Pro Version](https://img.shields.io/badge/Pro%20Version-Upgrade-gold)](https://app.easy.tools/ec/wisevision/wisevision-mcp-ros-2-pro)
 
 ![Flow graph](docs/assets/flow-graph.gif)
 
-**Python** server implementing **Model Context Protocol (MCP)** for **ROS2**.
+A **Python** implementation of the **Model Context Protocol (MCP)** for **ROS2**. This server enables AI tooling to connect with **ROS2** nodes, topics, and services using the **MCP** standard over **stdio**. It is designed to be **the easiest** **ROS2** server to configure **in the world**.
+## 🎯 Why Choose This MCP Server?
+
+**Save hours of development time** with native AI integration for your ROS2 projects:
+
+- **⚡ 1-minute setup** - World's easiest ROS2 MCP configuration
+- **0️⃣ Zero-friction setup** - stdio transport, no brokers, no webserver.
+- **🔌 Auto-discovery** - a built-in “list interfaces” tool dynamically enumerates available topics and services together with their message/service definitions (fields, types, schema) — so the client always knows exactly what data can be published or called. 
+- **🤖 AI-powered debugging** - Let AI help you troubleshoot ROS2 issues in real-time
+- **📊 Smart data analysis** - Query your robot's sensor data using natural language
+- **🚀 Boost productivity** - Control robots, analyze logs, and debug issues through AI chat
+- **💡 No ROS2 expertise required** - AI translates your requests into proper ROS2 commands
+
+**Perfect for:** Robotics developers, researchers, students, and anyone working with ROS2 who wants to leverage AI for faster development and debugging.
 
 🚀 **Enjoying this project?**  
 You’re welcome to try the **Pro version** with extra features and priority support.  
 👉 [Get Pro here](https://app.easy.tools/ec/wisevision/wisevision-mcp-ros-2-pro)
 
 
-# Real-world examples:
+# 🌍 Real-world examples:
 ![Demo](docs/assets/mcp-ros2-server.gif)
 
-# Features
+# ✨ Features
 - List available topics 
 - List available services 
 - Call service
@@ -30,6 +44,16 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 
 
 **Note:** To call service with custom service source it before start server.
+
+
+# ⚙️ Installation
+
+Follow the [installation guide](installation/README.md) for step-by-step instructions:
+- [🧩 Install in Visual Studio Code Copilot](installation/README.md#configure-visual-studio-code-copilot)
+- [🤖 Install in Claude Desktop](installation/README.md#configure-claude-desktop)
+- [💻 Install in Warp](installation/README.md#configure-warp)
+- [🐳 Build Docker Image locally](installation/README.md#build-docker-image-locally)
+
 
 
 ### 🔧 ROS 2 Tools
@@ -52,45 +76,7 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 | **`ros2_service_call`** | Calls a ROS 2 service | `service_name` (string) <br> `service_type` (string) <br> `fields` (array) <br> `force_call` (bool, default: false) | `result` (string) <br> `error` (string, if any) |
 
 
-## Usage
-
-### MCP Server Configuration
-
-**Docker run**
-
-Set MCP setting to mcp.json.
-```json
-"mcp_server_ros_2": {
-    "command": "docker",
-    "args": [
-        "run",
-        "-i",
-        "--rm",
-        "wisevision/mcp_server_ros_2:<humble/jazzy>"
-    ],
-    }
-
-```
-
-### Build docker image locally
-```bash
-git clone https://github.com/wise-vision/mcp_server_ros_2.git
-cd mcp_server_ros_2
-docker build -t mcp_server_ros_2:<humble/jazzy>  --build-arg ROS_DISTRO=<humble/jazzy> .
-```
-
-
-Add  this to AI Agent prompt:
-```txt
-You are an AI assistant that uses external tools via an MCP server.
-Before calling any tool, always check your memory to see if the list of available tools is known.
-	•	If you don’t have the current tool list in memory, your first action should be to call the list-tools tool.
-	•	Never guess tool names or parameters.
-	•	If a user requests something that may require a tool and you don’t have the right tool info, ask them or call list-tools first.
-Once the tool list is loaded, you may call tools directly using their documented names and schemas.
-```
-
-# Debugging
+# 🐞 Debugging
 
 Since MCP servers run over stdio, debugging can be challenging. For the best debugging
 experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
