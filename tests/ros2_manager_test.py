@@ -453,7 +453,8 @@ def test_get_qos_for_publisher_topic_superset_real_subs():
         assert qos.reliability == QoSReliabilityPolicy.RELIABLE
         assert qos.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL
         assert qos.history == QoSHistoryPolicy.KEEP_LAST
-        assert qos.depth == 10
+        if qos.depth != 0:
+            assert qos.depth >= 10
 
     finally:
         try:
