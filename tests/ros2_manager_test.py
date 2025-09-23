@@ -679,14 +679,12 @@ def test_action_request_result_success(mock_import_module, mock_msg_to_dict, moc
                 self.status = 4
                 self.result = MagicMock()
 
-        class _GetResultService:
+        # >>> kluczowa zmiana: ActionCls ma atrybut GetResult z .Request
+        class _GetResultType:
             Request = MagicMock(return_value=_GetResultReq())
 
-        class _Impl:
-            GetResultService = _GetResultService
-
         class _ActionCls:
-            Impl = _Impl
+            GetResult = _GetResultType
 
         fake_pkg_mod = MagicMock()
         setattr(fake_pkg_mod, "Fibonacci", _ActionCls)
@@ -704,7 +702,8 @@ def test_action_request_result_success(mock_import_module, mock_msg_to_dict, moc
 
         mgr = ROS2Manager()
         mgr.node.create_client = MagicMock(return_value=mock_client)
-        mgr._hex_to_uuid_bytes = lambda h: list(bytes.fromhex(h))
+        # lepiej zwracać bytes (tak jak realne pole UUID oczekuje)
+        mgr._hex_to_uuid_bytes = lambda h: bytes.fromhex(h)
 
         goal_id_hex = "0123456789abcdef0123456789abcdef"
 
@@ -724,19 +723,17 @@ def test_action_request_result_success(mock_import_module, mock_msg_to_dict, moc
         assert out["status"] is not None
         assert out["result"] == {"sequence": [1, 1, 2, 3, 5]}
 
-        sent_req = _GetResultService.Request.return_value
-        uuid_field = sent_req.goal_id.uuid
-        assert uuid_field is not None
-        if isinstance(uuid_field, (bytes, bytearray)):
-            assert len(uuid_field) == 16
-        else:
-            assert len(list(uuid_field)) == 16
+        sent_req = _GetResultType.Request.return_value
+        assert isinstance(sent_req.goal_id.uuid, (bytes, bytearray))
+        assert len(sent_req.goal_id.uuid) == 16
 
         mock_client.wait_for_service.assert_called_once()
         mock_client.call_async.assert_called_once()
         mock_spin.assert_called_once()
+
     finally:
         rclpy.shutdown()
+
 
 @patch("rclpy.spin_until_future_complete")
 @patch("importlib.import_module")
@@ -751,14 +748,12 @@ def test_action_request_result_timeout(mock_import_module, mock_spin):
                         self.uuid = None
                 self.goal_id = GID()
 
-        class _GetResultService:
+        # >>> tak samo jak wyżej: udajemy <Action>.GetResult
+        class _GetResultType:
             Request = MagicMock(return_value=_GetResultReq())
 
-        class _Impl:
-            GetResultService = _GetResultService
-
         class _ActionCls:
-            Impl = _Impl
+            GetResult = _GetResultType
 
         fake_pkg_mod = MagicMock()
         setattr(fake_pkg_mod, "Fibonacci", _ActionCls)
@@ -767,13 +762,14 @@ def test_action_request_result_timeout(mock_import_module, mock_spin):
         mock_client = MagicMock()
         mock_client.wait_for_service.return_value = True
 
+        # future, który NIE kończy się w limicie
         fake_future = MagicMock()
         fake_future.done.return_value = False
         mock_client.call_async.return_value = fake_future
 
         mgr = ROS2Manager()
         mgr.node.create_client = MagicMock(return_value=mock_client)
-        mgr._hex_to_uuid_bytes = lambda h: list(bytes.fromhex(h))
+        mgr._hex_to_uuid_bytes = lambda h: bytes.fromhex(h)
 
         goal_id_hex = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
@@ -793,6 +789,7 @@ def test_action_request_result_timeout(mock_import_module, mock_spin):
         mock_client.wait_for_service.assert_called_once()
         mock_client.call_async.assert_called_once()
         mock_spin.assert_called_once()
+
     finally:
         rclpy.shutdown()
 
