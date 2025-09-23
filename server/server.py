@@ -102,6 +102,7 @@ def list_prompt_handlers() -> List["prompthandler.BasePromptHandler"]:
 
 # Place for adding prompts
 add_prompt_handler(prompts_ros2.DroneMissionWithMAVROS2Prompt())
+add_prompt_handler(prompts_ros2.Nav2NavigateToPosePrompt())
 
 # Functions to handle list and getting prompts
 @app.list_prompts()
