@@ -403,7 +403,6 @@ from rclpy.qos import (
     QoSDurabilityPolicy,
     QoSHistoryPolicy,
 )
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.executors import SingleThreadedExecutor
 from std_msgs.msg import String
 import time

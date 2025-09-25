@@ -323,7 +323,10 @@ class ROS2Manager:
         tmp_node = Node("mcp_subscribe_tmp")
         received = []
         done_future = Future()
-        qos = self.get_qos_profile_for_topic(tmp_node, topic_name)
+        try:
+            qos = self.get_qos_profile_for_topic(tmp_node, topic_name)
+        finally:
+            tmp_node.destroy_node()
 
         def callback(msg):
             received.append(msg)
@@ -453,7 +456,10 @@ class ROS2Manager:
             return {"error": f"Failed to load message type: {str(e)}"}
         
         tmp_node = Node("mcp_publish_tmp")
-        qos = self.get_qos_for_publisher_topic(tmp_node, topic_name)
+        try:
+            qos = self.get_qos_for_publisher_topic(tmp_node, topic_name)
+        finally:
+            tmp_node.destroy_node()
 
         try:
             pub = self.node.create_publisher(msg_class, topic_name, qos)
