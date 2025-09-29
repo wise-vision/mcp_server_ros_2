@@ -211,12 +211,14 @@ class ROS2TopicSubscribe(toolhandler.ToolHandler):
 # Legacy support for wisevision_data_black_box
 class ROS2GetMessages(toolhandler.ToolHandler):
     def __init__(self):
-        super().__init__("ros2_get_messages")
+        super().__init__("ros2_get_messages_stored_in_influx_data_base")
 
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="""Calls the ROS2 ‘/get_messages’ service to retrieve past messages from a topic for data which is stored in InfluxDB.""",
+            description="""Calls the ROS2 ‘/get_messages’ service to retrieve past messages from a topic for data which is stored in InfluxDB.
+            Check if the /get_messages service is available before calling.
+            """,
             inputSchema={
                 "type": "object",
                 "properties": {

@@ -962,3 +962,116 @@ def test_action_subscribe_status_collects_frames(mock_spin_once, monkeypatch):
         node.create_subscription.assert_called_once()
     finally:
         rclpy.shutdown()
+
+from rclpy.qos import (
+    QoSProfile,
+    QoSReliabilityPolicy,
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+)
+from rclpy.executors import SingleThreadedExecutor
+from std_msgs.msg import String
+import time
+
+def test_get_qos_for_publisher_topic_superset_real_subs():
+    rclpy.init()
+    try:
+        topic = "/qos_integration_test"
+
+        sub_a_node = rclpy.create_node("sub_a_node")
+        sub_b_node = rclpy.create_node("sub_b_node")
+
+        qos_a = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        qos_b = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=3,
+        )
+
+        sub_a = sub_a_node.create_subscription(String, topic, lambda m: None, qos_a)
+        sub_b = sub_b_node.create_subscription(String, topic, lambda m: None, qos_b)
+
+        inspector_node = rclpy.create_node("inspector_node")
+
+        from server.ros2_manager import ROS2Manager
+        manager = ROS2Manager()
+        manager.node = inspector_node
+
+        # Discovery
+        exec = SingleThreadedExecutor()
+        exec.add_node(sub_a_node)
+        exec.add_node(sub_b_node)
+        exec.add_node(inspector_node)
+
+        for _ in range(10):
+            exec.spin_once(timeout_sec=0.05)
+            time.sleep(0.01)
+
+        qos = manager.get_qos_for_publisher_topic(inspector_node, topic)
+
+        assert qos.reliability == QoSReliabilityPolicy.RELIABLE
+        assert qos.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL
+        assert qos.history == QoSHistoryPolicy.KEEP_LAST
+        if qos.depth != 0:
+            assert qos.depth >= 10
+
+    finally:
+        try:
+            sub_a_node.destroy_subscription(sub_a)
+            sub_b_node.destroy_subscription(sub_b)
+        except Exception:
+            pass
+        try:
+            sub_a_node.destroy_node()
+            sub_b_node.destroy_node()
+        except Exception:
+            pass
+        try:
+            inspector_node.destroy_node()
+        except Exception:
+            pass
+        rclpy.shutdown()
+
+
+
+from unittest.mock import patch, MagicMock
+
+@patch("server.ros2_manager.ServiceNode")
+def test_publish_to_topic_uses_selected_qos(mock_node_cls):
+    from std_msgs.msg import String
+    from server.ros2_manager import ROS2Manager
+
+    rclpy.init()
+    chosen_qos = QoSProfile(
+        reliability=QoSReliabilityPolicy.RELIABLE,
+        durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        history=QoSHistoryPolicy.KEEP_LAST,
+        depth=5,
+    )
+
+    mock_node = MagicMock()
+    mock_publisher = MagicMock()
+    mock_node.create_publisher.return_value = mock_publisher
+    mock_node_cls.return_value = mock_node
+
+    manager = ROS2Manager()
+    manager.get_qos_for_publisher_topic = MagicMock(return_value=chosen_qos)
+
+    result = manager.publish_to_topic("/chatter", "std_msgs/msg/String", {"data": "hello"})
+
+    assert result["status"] == "published"
+    args, kwargs = mock_node.create_publisher.call_args
+    assert args[0] is String
+    assert args[1] == "/chatter"
+    passed_qos = args[2]
+    assert isinstance(passed_qos, QoSProfile)
+    assert passed_qos.reliability == QoSReliabilityPolicy.RELIABLE
+    assert passed_qos.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL
+    assert passed_qos.history == QoSHistoryPolicy.KEEP_LAST
+    assert passed_qos.depth == 5

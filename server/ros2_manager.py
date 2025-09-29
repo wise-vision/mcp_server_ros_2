@@ -108,6 +108,61 @@ class ROS2Manager:
 
         return qos_profile
 
+    def get_qos_for_publisher_topic(self, node, topic_name: str) -> QoSProfile:
+
+        base = QoSPresetProfiles.SYSTEM_DEFAULT.value
+        qos = QoSProfile(
+            depth=base.depth,
+            reliability=base.reliability,
+            durability=base.durability,
+            history=base.history,
+            deadline=base.deadline,
+            lifespan=base.lifespan,
+            liveliness=base.liveliness,
+            liveliness_lease_duration=base.liveliness_lease_duration,
+            avoid_ros_namespace_conventions=base.avoid_ros_namespace_conventions,
+        )
+
+        subs_info = node.get_subscriptions_info_by_topic(topic_name)
+        if not subs_info:
+            return qos  # no subscription -> use default profile
+
+        any_reliable = False
+        any_transient_local = False
+        any_keep_all = False
+        max_keep_last_depth = 0
+
+        for info in subs_info:
+            sp = info.qos_profile
+
+            if sp.reliability == QoSReliabilityPolicy.RELIABLE:
+                any_reliable = True
+
+            if sp.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL:
+                any_transient_local = True
+
+            if sp.history == QoSHistoryPolicy.KEEP_ALL:
+                any_keep_all = True
+            else:  # KEEP_LAST
+                try:
+                    max_keep_last_depth = max(max_keep_last_depth, int(sp.depth))
+                except Exception:
+                    pass
+
+        # Reliability
+        qos.reliability = QoSReliabilityPolicy.RELIABLE if any_reliable else QoSReliabilityPolicy.BEST_EFFORT
+        # Durability
+        qos.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL if any_transient_local else QoSDurabilityPolicy.VOLATILE
+        # History/depth
+        if any_keep_all:
+            qos.history = QoSHistoryPolicy.KEEP_ALL
+        else:
+            qos.history = QoSHistoryPolicy.KEEP_LAST
+            if max_keep_last_depth > 0:
+                qos.depth = max(max_keep_last_depth, qos.depth)
+
+        return qos
+    
     def list_topics(self):
         topic_names_and_types = self.node.get_topic_names_and_types()
         result = []
@@ -308,7 +363,10 @@ class ROS2Manager:
         tmp_node = Node("mcp_subscribe_tmp")
         received = []
         done_future = Future()
-        qos = self.get_qos_profile_for_topic(tmp_node, topic_name)
+        try:
+            qos = self.get_qos_profile_for_topic(tmp_node, topic_name)
+        finally:
+            tmp_node.destroy_node()
 
         def callback(msg):
             received.append(msg)
@@ -440,9 +498,15 @@ class ROS2Manager:
             msg_class = getattr(module, msg)
         except Exception as e:
             return {"error": f"Failed to load message type: {str(e)}"}
+        
+        tmp_node = Node("mcp_publish_tmp")
+        try:
+            qos = self.get_qos_for_publisher_topic(tmp_node, topic_name)
+        finally:
+            tmp_node.destroy_node()
 
         try:
-            pub = self.node.create_publisher(msg_class, topic_name, 10)
+            pub = self.node.create_publisher(msg_class, topic_name, qos)
             msg_instance = msg_class()
             set_message_fields(msg_instance, data)
             pub.publish(msg_instance)
