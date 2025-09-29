@@ -45,7 +45,7 @@ You’re welcome to try the **Pro version** with extra features and priority sup
 - Send goal request to action
 - Cancel action
 - Send result request to action
-- Subscribe action fedback
+- Subscribe action feedback
 - Subscribe action status
 
 
