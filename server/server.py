@@ -11,13 +11,14 @@
 import logging
 import traceback
 from typing import Any, Dict, List, Sequence
-from collections.abc import Sequence
 from mcp.server import Server
 from mcp.types import (
     Tool,
     TextContent,
     ImageContent,
     EmbeddedResource,
+    Prompt,
+    GetPromptResult,
 )
 
 from . import toolhandler
@@ -78,8 +79,6 @@ async def call_tool(
         raise RuntimeError(f"Caught Exception. Error: {str(e)}")
 
 # Prompts
-from mcp.types import Prompt 
-from mcp.types import GetPromptResult
 from . import prompthandler
 from . import prompts_ros2
 
