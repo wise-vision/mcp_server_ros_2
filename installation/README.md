@@ -174,7 +174,7 @@ mkdir -p ~/mcp_custom_messages/src
 ### Add messages package to `src` in `mcp_custom_messages`
 ```bash
 cd ~/mcp_custom_messages/src
-git clone https://github.com/ros/ros_tutorials.git #or your custom meesage pack
+git clone https://github.com/ros/ros_tutorials.git #or your custom message pack
 ```
 ### Build
 ```bash
