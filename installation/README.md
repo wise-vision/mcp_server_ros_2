@@ -80,7 +80,7 @@ To use custom messages [create folder](#add-custom-messages) and paste it into c
 To use custom prompts:
 ```json
 {
-  "mcp_server_ros_2": {
+  "ros2_mcp": {
     "command": "docker",
     "args": [
       "run",
@@ -98,7 +98,7 @@ To use custom prompts:
 To use custom prompts from local folder:
 ```json
 {
-  "mcp_server_ros_2": {
+  "ros2_mcp": {
     "command": "docker",
     "args": [
       "run",
@@ -208,7 +208,7 @@ To use custom prompts:
 To use custom prompts from local folder:
 ```json
 {
-  "mcp_server_ros_2": {
+  "ros2_mcp": {
     "command": "docker",
     "args": [
       "run",
@@ -228,7 +228,7 @@ To use custom prompts from local folder:
 To use custom messages [create folder](#add-custom-messages) and paste it into config:
 ```json
 {
-  "mcp_server_ros_2": {
+  "ros2_mcp": {
     "command": "docker",
     "args": [
       "run",
@@ -247,6 +247,29 @@ To use custom messages [create folder](#add-custom-messages) and paste it into c
 ### Step 4: Save and Enjoy
 
 After saving you should see indicator that the MCP server is running. You can now test the setup by using the AI features in WARP.
+
+### How to use ros2 mcp with [rmw_zenoh](https://github.com/ros2/rmw_zenoh)
+
+Set the `RMW_IMPLEMENTATION` environment variable to `rmw_zenoh_cpp`:
+
+```json
+{
+  "ros2_mcp": {
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "-e", "RMW_IMPLEMENTATION=rmw_zenoh_cpp",
+      "wisevision/ros2_mcp:<humble/jazzy>"
+    ],
+    "env": {},
+    "working_directory": null,
+    "start_on_launch": true
+  }
+}
+```
+
 
 # Build docker image locally:
 ```bash
