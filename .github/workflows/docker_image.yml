@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
   schedule:
     - cron: '0 4 * * 0'
@@ -37,7 +38,7 @@ jobs:
           docker build -t ros2_mcp  --build-arg ROS_DISTRO=${{ matrix.ros_distro }} .
 
   build_and_push_arm64:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     name: Build & Push (ARM64)
     runs-on: wisevision-runner
     strategy:
@@ -74,8 +75,8 @@ jobs:
             --push \
             .
 
-  build_and_push_amd64:
-    if: github.event_name == 'push'
+  build_and_push_amd64: 
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     name: Build & Push (AMD64)
     runs-on: ubuntu-latest
     strategy:
@@ -106,7 +107,7 @@ jobs:
             .
 
   merge_manifests:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     name: Merge Images into Multi-Arch (Docker Hub)
     runs-on: wisevision-runner
     needs: [build_and_push_arm64, build_and_push_amd64]
