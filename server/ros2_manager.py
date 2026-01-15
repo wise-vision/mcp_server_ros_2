@@ -12,6 +12,8 @@
 import rclpy
 from rclpy.node import Node
 import importlib
+import os
+import threading
 from typing import Any
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py import get_interfaces
@@ -57,6 +59,44 @@ GOAL_CANCEL_RET = {
     3: "ERROR_GOAL_TERMINATED",
 }
 
+_TRUE_STRINGS = {"1", "true", "yes", "on"}
+_FALSE_STRINGS = {"0", "false", "no", "off"}
+
+
+def _parse_env_bool(name: str) -> bool | None:
+    val = os.getenv(name)
+    if val is None:
+        return None
+    norm = val.strip().lower()
+    if norm in _TRUE_STRINGS:
+        return True
+    if norm in _FALSE_STRINGS:
+        return False
+    return None
+
+
+def _parse_env_float(name: str, default: float) -> float:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
+
+
+def _is_container_environment() -> bool:
+    try:
+        if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
+            return True
+
+        # Fallback for container runtimes that don't expose the marker files.
+        with open("/proc/1/cgroup", "rt", encoding="utf-8", errors="ignore") as f:
+            cgroup = f.read()
+        return any(token in cgroup for token in ("docker", "containerd", "kubepods", "podman", "libpod"))
+    except Exception:
+        return False
+
 
 class ServiceNode(Node):
     def __init__(self):
@@ -66,6 +106,101 @@ class ServiceNode(Node):
 class ROS2Manager:
     def __init__(self):
         self.node = ServiceNode()
+        self._discovery_warmed_up = False
+        self._discovery_warmup_lock = threading.Lock()
+
+    def _graph_snapshot(self) -> tuple[tuple[tuple[str, tuple[str, ...]], ...], tuple[tuple[str, tuple[str, ...]], ...]]:
+        topics = tuple(
+            sorted((name, tuple(types)) for name, types in self.node.get_topic_names_and_types())
+        )
+        services = tuple(
+            sorted((name, tuple(types)) for name, types in self.node.get_service_names_and_types())
+        )
+        return topics, services
+
+    def warm_up_discovery(self) -> dict:
+        """
+        Mitigate DDS discovery timing issues (common in containers) by waiting
+        on the first tool invocation until the ROS graph stabilizes.
+
+        Env vars:
+        - MCP_ROS_DISCOVERY_WARMUP: true/false (default: auto; enabled in containers)
+        - MCP_ROS_DISCOVERY_TIMEOUT_SEC: max wait time (default: 5.0)
+        - MCP_ROS_DISCOVERY_STABLE_SEC: required "no changes" window (default: 1.0)
+        - MCP_ROS_DISCOVERY_POLL_SEC: polling interval (default: 0.1)
+        - MCP_ROS_DISCOVERY_DELAY_SEC: minimum wait before proceeding (default: 0.0)
+        """
+        if self._discovery_warmed_up:
+            return {"status": "already_warmed"}
+
+        with self._discovery_warmup_lock:
+            if self._discovery_warmed_up:
+                return {"status": "already_warmed"}
+
+            enabled_env = _parse_env_bool("MCP_ROS_DISCOVERY_WARMUP")
+            enabled = _is_container_environment() if enabled_env is None else enabled_env
+
+            if not enabled:
+                self._discovery_warmed_up = True
+                return {"status": "disabled"}
+
+            timeout_sec = max(_parse_env_float("MCP_ROS_DISCOVERY_TIMEOUT_SEC", 5.0), 0.0)
+            stable_sec = max(_parse_env_float("MCP_ROS_DISCOVERY_STABLE_SEC", 1.0), 0.0)
+            poll_sec = max(_parse_env_float("MCP_ROS_DISCOVERY_POLL_SEC", 0.1), 0.01)
+            delay_sec = max(_parse_env_float("MCP_ROS_DISCOVERY_DELAY_SEC", 0.0), 0.0)
+
+            max_wait_sec = max(timeout_sec, delay_sec)
+            if max_wait_sec <= 0.0 and stable_sec <= 0.0:
+                self._discovery_warmed_up = True
+                return {"status": "skipped"}
+
+            start = time.monotonic()
+            last_snapshot = None
+            last_change = start
+            polls = 0
+
+            while True:
+                now = time.monotonic()
+                elapsed = now - start
+                if elapsed >= max_wait_sec:
+                    break
+
+                remaining = max_wait_sec - elapsed
+                step = min(poll_sec, remaining)
+
+                # Give rclpy a chance to process graph updates, but avoid busy looping.
+                step_start = time.monotonic()
+                try:
+                    rclpy.spin_once(self.node, timeout_sec=step)
+                except Exception:
+                    pass
+                spun = time.monotonic() - step_start
+                if spun < step:
+                    time.sleep(step - spun)
+
+                snapshot = self._graph_snapshot()
+                polls += 1
+                now = time.monotonic()
+                elapsed = now - start
+
+                if snapshot != last_snapshot:
+                    last_snapshot = snapshot
+                    last_change = now
+
+                if elapsed >= delay_sec and (now - last_change) >= stable_sec:
+                    break
+
+            self._discovery_warmed_up = True
+            elapsed_total = time.monotonic() - start
+            topics_count = len(last_snapshot[0]) if last_snapshot else 0
+            services_count = len(last_snapshot[1]) if last_snapshot else 0
+            return {
+                "status": "warmed",
+                "elapsed_sec": elapsed_total,
+                "polls": polls,
+                "topics": topics_count,
+                "services": services_count,
+            }
 
     def get_qos_profile_for_topic(self, node, topic_name: str):
 

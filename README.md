@@ -104,6 +104,15 @@ Follow the [installation guide](installation/README.md) for step-by-step instruc
 - [💻 Install in Warp](installation/README.md#configure-warp)
 - [🐳 Build Docker Image locally](installation/README.md#build-docker-image-locally)
 
+## 🧭 DDS discovery warm-up (Docker)
+
+If the first tool call returns an incomplete list of topics/services right after container start, DDS discovery may still be in progress.
+The server performs a one-time warm-up on the first tool call in container environments; tune it via:
+
+- `MCP_ROS_DISCOVERY_STABLE_SEC` (default: `1.0`)
+- `MCP_ROS_DISCOVERY_TIMEOUT_SEC` (default: `5.0`)
+- `MCP_ROS_DISCOVERY_WARMUP=false` to disable
+
 ## 💡 Want to try it in simulation?
 [Check out the Gazebo Drone Demo section](docs/DEMO_DRONE.md)
 

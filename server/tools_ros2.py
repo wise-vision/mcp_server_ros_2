@@ -34,6 +34,7 @@ def get_ros() -> ros2_manager.ROS2Manager:
                 "rclpy is not initialized. Make sure rclpy.init() was called in main()."
             )
         _ros_instance = ros2_manager.ROS2Manager()
+    _ros_instance.warm_up_discovery()
     return _ros_instance
 
 

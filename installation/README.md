@@ -59,6 +59,34 @@ Before you begin, ensure you have the following:
   }
 }
 ```
+### DDS discovery warm-up (Docker)
+
+If the first tool invocation returns an incomplete list of topics/services, DDS discovery may still be in progress.
+You can enable/tune a one-time warm-up on the first tool call via environment variables:
+
+- `MCP_ROS_DISCOVERY_WARMUP` (true/false; default: auto-enabled in containers)
+- `MCP_ROS_DISCOVERY_STABLE_SEC` (default: `1.0`, increase if needed)
+- `MCP_ROS_DISCOVERY_TIMEOUT_SEC` (default: `5.0`, increase if needed)
+
+Example:
+```json
+{
+  "ros2_mcp": {
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "-e", "MCP_ROS_DISCOVERY_STABLE_SEC=2.0",
+      "-e", "MCP_ROS_DISCOVERY_TIMEOUT_SEC=10.0",
+      "wisevision/ros2_mcp:<humble/jazzy>"
+    ],
+    "env": {},
+    "working_directory": null,
+    "start_on_launch": true
+  }
+}
+```
 To use custom messages [create folder](#add-custom-messages) and paste it into config:
 ```json
 {
