@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     build-essential \
     ca-certificates \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
     ros-${ROS_DISTRO}-std-msgs \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-sensor-msgs \
@@ -69,10 +70,13 @@ VOLUME ["/ros2_mcp_prompts"]
 RUN mkdir -p /mcp/custom_msgs
 VOLUME ["/mcp/custom_msgs"]
 
+ENV RMW_IMPLEMENTATION=""
+
 ENTRYPOINT []
 CMD ["bash", "-c", " \
   source /opt/ros/${ROS_DISTRO}/setup.bash && \
   source /root/wisevision_ws/install/setup.bash && \
+  if [ -n \"$RMW_IMPLEMENTATION\" ]; then export RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION; fi && \
   if [ -f /app/custom_msgs/install/setup.bash ]; then \
   source /app/custom_msgs/install/setup.bash; \
   fi && \
