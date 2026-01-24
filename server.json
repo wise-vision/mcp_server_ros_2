@@ -48,6 +48,36 @@
           "description": "Name of the prompts module",
           "isRequired": false,
           "value": "extension_prompts"
+        },
+        {
+          "name": "MCP_ROS_DISCOVERY_WARMUP",
+          "description": "Warm up ROS graph on first tool call to mitigate DDS discovery timing issues (true/false; default: auto-enabled in containers)",
+          "isRequired": false,
+          "value": "true"
+        },
+        {
+          "name": "MCP_ROS_DISCOVERY_TIMEOUT_SEC",
+          "description": "Max time (seconds) to wait during discovery warm-up",
+          "isRequired": false,
+          "value": "5.0"
+        },
+        {
+          "name": "MCP_ROS_DISCOVERY_STABLE_SEC",
+          "description": "Required 'no changes' window (seconds) before proceeding during discovery warm-up",
+          "isRequired": false,
+          "value": "1.0"
+        },
+        {
+          "name": "MCP_ROS_DISCOVERY_POLL_SEC",
+          "description": "Polling interval (seconds) used during discovery warm-up",
+          "isRequired": false,
+          "value": "0.1"
+        },
+        {
+          "name": "MCP_ROS_DISCOVERY_DELAY_SEC",
+          "description": "Minimum delay (seconds) before the first tool proceeds (in addition to stability check)",
+          "isRequired": false,
+          "value": "0.0"
         }
       ]
     }
