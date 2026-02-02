@@ -1,4 +1,14 @@
 ARG ROS_DISTRO=jazzy
+FROM node:20-bookworm-slim AS ui_build
+WORKDIR /ui
+COPY server/ui/ros2_viewer_app/package.json /ui/package.json
+COPY server/ui/ros2_viewer_app/build.mjs /ui/build.mjs
+COPY server/ui/ros2_viewer_app/tsconfig.json /ui/tsconfig.json
+COPY server/ui/ros2_viewer_app/index.template.html /ui/index.template.html
+COPY server/ui/ros2_viewer_app/src /ui/src
+RUN npm install
+RUN npm run build
+
 FROM wisevision/ros_with_wisevision_msgs_and_wisevision_core:${ROS_DISTRO}
 
 LABEL io.modelcontextprotocol.server.name="io.github.wise-vision/ros2_mcp"
@@ -52,6 +62,7 @@ RUN if [ "$ROS_DISTRO" = "humble" ]; then \
 
 WORKDIR /app
 COPY . /app
+COPY --from=ui_build /ui/index.html /app/server/ui/ros2_viewer_app/index.html
 
 RUN uv venv
 

@@ -32,6 +32,7 @@ mcp_ros_2_server = "server.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["server"]
+include = ["server/ui/**"]
 
 [tool.mcp_ros_2]
 custom_prompts = false

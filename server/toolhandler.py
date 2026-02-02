@@ -17,8 +17,9 @@ from mcp.types import (
 
 
 class ToolHandler:
-    def __init__(self, tool_name: str):
+    def __init__(self, tool_name: str, *, ui_only: bool = False):
         self.name = tool_name
+        self.ui_only = ui_only
 
     def get_tool_description(self) -> Tool:
         raise NotImplementedError()

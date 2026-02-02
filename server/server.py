@@ -19,9 +19,11 @@ from mcp.types import (
     EmbeddedResource,
     Prompt,
     GetPromptResult,
+    Resource,
 )
 from . import toolhandler
 from . import tools_ros2
+from . import tools_ros2_viewer
 import os, sys, pathlib, importlib
 from dataclasses import dataclass
 from importlib.metadata import entry_points
@@ -65,12 +67,25 @@ add_tool_handler(tools_ros2.ROS2CancelActionGoal())
 add_tool_handler(tools_ros2.ROS2ActionRequestResult())
 add_tool_handler(tools_ros2.ROS2ActionSubscribeFeedback())
 add_tool_handler(tools_ros2.ROS2ActionSubscribeStatus())
+add_tool_handler(tools_ros2_viewer.ROS2ViewerApp())
+add_tool_handler(tools_ros2_viewer.ROS2StreamStart())
+add_tool_handler(tools_ros2_viewer.ROS2StreamNext())
+add_tool_handler(tools_ros2_viewer.ROS2StreamNextImage())
+add_tool_handler(tools_ros2_viewer.ROS2StreamStop())
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     """List available tools."""
 
-    return [th.get_tool_description() for th in tool_handlers.values()]
+    tools: list[Tool] = []
+    for th in tool_handlers.values():
+        tool = th.get_tool_description()
+        if getattr(th, "ui_only", False):
+            meta = getattr(tool, "_meta", None) or {}
+            meta = {**meta, "ui_only": True}
+            tool._meta = meta
+        tools.append(tool)
+    return tools
 
 
 @app.call_tool()
@@ -271,4 +286,43 @@ async def handle_get_prompt(
         logging.error(traceback.format_exc())
         logging.error(f"Error during get_prompt: {e}")
         raise RuntimeError(f"Caught Exception. Error: {str(e)}")
+
+
+# Resources (for MCP clients that support opening resources / Apps)
+@app.list_resources()
+async def handle_list_resources() -> list[Resource]:
+    return [
+        Resource(
+            uri="ui://ros2-viewer/app",
+            name="ROS 2 Viewer",
+            description="Interactive viewer UI for Image/PointCloud2 (requires MCP client Apps/resource rendering support).",
+            mimeType="text/html;profile=mcp-app",
+        )
+        ,
+        # Backward compatibility for clients that cached older URIs.
+        Resource(
+            uri="ros2-viewer://app",
+            name="ROS 2 Viewer (legacy URI)",
+            description="Legacy resource URI for the ROS 2 Viewer app.",
+            mimeType="text/html;profile=mcp-app",
+        ),
+    ]
+
+
+@app.read_resource()
+async def handle_read_resource(uri: str):
+    raw = str(uri or "")
+    norm = raw.strip()
+    for sep in ("#", "?"):
+        if sep in norm:
+            norm = norm.split(sep, 1)[0]
+    if norm.endswith("/"):
+        norm = norm[:-1]
+
+    if norm not in ("ui://ros2-viewer/app", "ros2-viewer://app"):
+        raise ValueError(f"Unknown resource: {uri}")
+    from .ros2_viewer_app import ROS2_VIEWER_APP_HTML
+    from mcp.server.lowlevel.helper_types import ReadResourceContents
+
+    return [ReadResourceContents(content=ROS2_VIEWER_APP_HTML, mime_type="text/html;profile=mcp-app")]
     

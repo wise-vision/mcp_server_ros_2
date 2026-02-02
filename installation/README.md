@@ -87,6 +87,9 @@ Example:
   }
 }
 ```
+
+If you see `docker: invalid reference format: repository name (library/RMW_IMPLEMENTATION=...) must be lowercase`, it usually means `RMW_IMPLEMENTATION=...` was parsed as the Docker image name. Make sure every `VAR=value` is preceded by `-e` (or `--env`) and appears **before** the image name in the `args` list.
+
 To use custom messages [create folder](#add-custom-messages) and paste it into config:
 ```json
 {
@@ -262,7 +265,7 @@ To use custom messages [create folder](#add-custom-messages) and paste it into c
       "run",
       "-i",
       "--rm",
-      "-v", "~/mcp_custom_messages:/app/custom_msgs"
+      "-v", "~/mcp_custom_messages:/app/custom_msgs",
       "wisevision/mcp_server_ros_2:<humble/jazzy>"
     ],
     "env": {},
@@ -296,6 +299,11 @@ Set the `RMW_IMPLEMENTATION` environment variable to `rmw_zenoh_cpp`:
     "start_on_launch": true
   }
 }
+```
+
+Equivalent command (if you run Docker directly):
+```bash
+docker run -i --rm -e RMW_IMPLEMENTATION=rmw_zenoh_cpp wisevision/ros2_mcp:<humble/jazzy>
 ```
 
 
