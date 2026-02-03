@@ -263,13 +263,8 @@ colcon build
 To add ROS2 MCP to OpenAI's CODEX (the easiest way - using Docker), follow these steps:
 
 1. Open codex: 
-```bash
-codex
-```
-2. Paste the following command:
-```bash
-codex mcp add ros2 -- docker run -i --rm --net=host mcp/ros2
-```
+   ```bash
+   codex
 
 You should see the similar output
 ![codex_add_mcp](../docs/assets/codex_cli_add_mcp.png)
