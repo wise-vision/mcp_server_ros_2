@@ -266,7 +266,7 @@ To add ROS2 MCP to OpenAI's CODEX (the easiest way - using Docker), follow these
    ```bash
    codex
 
-You should see the similar output
+You should see similar output:
 ![codex_add_mcp](../docs/assets/codex_cli_add_mcp.png)
 
 3. **Restart codex (required!)**
