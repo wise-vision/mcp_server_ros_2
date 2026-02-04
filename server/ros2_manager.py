@@ -1363,25 +1363,6 @@ class _MCPStreamSession:
         except Exception as e:
             return {"error": str(e)}
 
-
-# Backward-compatibility: during incremental edits, some ROS2Manager methods may
-# temporarily live on _MCPStreamSession. Expose them on ROS2Manager so existing
-# tools keep working.
-for _name in (
-    "serialize_msg",
-    "subscribe_topic",
-    "call_get_messages_service_any",
-    "publish_to_topic",
-    "shutdown",
-    "send_action_goal",
-    "cancel_action_goal",
-    "action_request_result",
-    "action_subscribe_feedback",
-    "action_subscribe_status",
-):
-    if not hasattr(ROS2Manager, _name) and hasattr(_MCPStreamSession, _name):
-        setattr(ROS2Manager, _name, getattr(_MCPStreamSession, _name))
-
     def _hex_to_uuid_bytes(self, hex_str: str) -> list[int]:
         hex_clean = hex_str.replace("-", "").strip().lower()
         if len(hex_clean) != 32:
@@ -1472,7 +1453,6 @@ for _name in (
         except Exception as e:
             return {"error": str(e)}
 
-
     def action_request_result(
         self,
         action_name: str,
@@ -1556,7 +1536,7 @@ for _name in (
 
         except Exception as e:
             return {"error": str(e)}
-        
+
     def action_subscribe_feedback(
         self,
         action_name: str,
@@ -1656,8 +1636,7 @@ for _name in (
                 except Exception:
                     # Ignore errors extracting goal_id; goal_id_hex will remain None if extraction fails.
                     pass
-        
- 
+
     def action_subscribe_status(
         self,
         action_name: str,
@@ -1709,6 +1688,15 @@ for _name in (
                                 "status": GOAL_STATUS.get(code, str(code)),
                             }
                         )
+                    try:
+                        stamp = getattr(msg, "stamp", None)
+                        frame["stamp"] = (
+                            {"sec": int(getattr(stamp, "sec", 0)),
+                            "nanosec": int(getattr(stamp, "nanosec", 0))}
+                            if stamp else None
+                        )
+                    except Exception:
+                        frame["stamp"] = None
                     out["frames"].append(frame)
                 except Exception as e:
                     out.setdefault("warn", []).append(str(e))
@@ -1719,25 +1707,42 @@ for _name in (
             self._tmp_subs.append(sub)
 
             end_time = self.node.get_clock().now().nanoseconds + int(duration_sec * 1e9)
-
-            def _count_statuses():
-                return sum(len(f.get("statuses", [])) for f in out["frames"])
-
             while self.node.get_clock().now().nanoseconds < end_time:
-                if _count_statuses() >= max_messages:
+                if len(out["frames"]) >= max_messages:
                     break
                 rclpy.spin_once(self.node, timeout_sec=0.1)
-
-            # Clean up subscription
-            self.node.destroy_subscription(sub)
-            if hasattr(self, "_tmp_subs"):
-                try:
-                    self._tmp_subs.remove(sub)
-                except ValueError:
-                    # Subscription not found in _tmp_subs; safe to ignore.  
-                    pass
 
             return out
 
         except Exception as e:
             return {"error": str(e)}
+
+        finally:
+            try:
+                if sub is not None:
+                    self.node.destroy_subscription(sub)
+            finally:
+                try:
+                    if sub is not None and hasattr(self, "_tmp_subs"):
+                        self._tmp_subs = [s for s in self._tmp_subs if s is not sub]
+                except Exception:
+                    pass
+
+
+# Backward-compatibility: during incremental edits, some ROS2Manager methods may
+# temporarily live on _MCPStreamSession. Expose them on ROS2Manager so existing
+# tools keep working.
+for _name in (
+    "serialize_msg",
+    "subscribe_topic",
+    "call_get_messages_service_any",
+    "publish_to_topic",
+    "shutdown",
+    "send_action_goal",
+    "cancel_action_goal",
+    "action_request_result",
+    "action_subscribe_feedback",
+    "action_subscribe_status",
+):
+    if not hasattr(ROS2Manager, _name) and hasattr(_MCPStreamSession, _name):
+        setattr(ROS2Manager, _name, getattr(_MCPStreamSession, _name))

@@ -12,6 +12,7 @@ from __future__ import annotations
 from copy import deepcopy
 from importlib import resources
 import json
+import logging
 
 _LAST_VIEWER_CONFIG: dict | None = None
 
@@ -24,7 +25,29 @@ def _read_viewer_html() -> str:
     into index.html. The MCP tool returns it as a single embedded HTML resource.
     """
     base = resources.files("server").joinpath("ui", "ros2_viewer_app")
-    return base.joinpath("index.html").read_text(encoding="utf-8")
+    try:
+        return base.joinpath("index.html").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logging.getLogger(__name__).warning(
+            "ROS 2 Viewer UI index.html not found. Falling back to template placeholder."
+        )
+        try:
+            template = base.joinpath("index.template.html").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return (
+                "<!doctype html><html><head><meta charset=\"utf-8\" />"
+                "<title>ROS 2 Viewer</title></head><body>"
+                "<pre>ROS 2 Viewer UI not built. Run npm install && npm run build "
+                "in server/ui/ros2_viewer_app.</pre></body></html>"
+            )
+        fallback_script = (
+            "document.body.innerHTML = "
+            "\"<div style='font-family: sans-serif; padding: 16px;'>\" + "
+            "\"ROS 2 Viewer UI not built. Run <code>npm install</code> and "
+            "<code>npm run build</code> in <code>server/ui/ros2_viewer_app</code>.\" + "
+            "\"</div>\";"
+        )
+        return template.replace("/*__APP_JS__*/", fallback_script)
 
 
 def _set_last_viewer_config(config: dict | None) -> None:
