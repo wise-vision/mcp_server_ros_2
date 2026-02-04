@@ -16,13 +16,15 @@ LABEL io.modelcontextprotocol.server.name="io.github.wise-vision/ros2_mcp"
 ENV MCP_CUSTOM_PROMPTS="false" \
     MCP_PROMPTS_LOCAL="false" \
     MCP_PROMPTS_PATH="/app/ros2_mcp_prompts" \
-    MCP_PROMPTS_MODULE="extension_prompts"
+    MCP_PROMPTS_MODULE="extension_prompts" \
+    RMW_FASTRTPS_USE_SHM="0"
 
 RUN apt-get update && apt-get install -y \
     python3-pip \
     build-essential \
     ca-certificates \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-std-msgs \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-sensor-msgs \

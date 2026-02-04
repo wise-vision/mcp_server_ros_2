@@ -67,6 +67,28 @@ class ROS2ViewerApp(toolhandler.ToolHandler):
         ]
 
 
+class ROS2ViewerConfig(toolhandler.ToolHandler):
+    def __init__(self):
+        super().__init__("ros2_viewer_config", ui_only=True)
+
+    def get_tool_description(self) -> Tool:
+        return Tool(
+            name=self.name,
+            description="Return the last ROS 2 Viewer App configuration (if any). UI/App-only tool.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent]:
+        from .ros2_viewer_app import get_last_viewer_config
+
+        config = get_last_viewer_config() or {}
+        return [TextContent(type="text", text=json.dumps(config, indent=2))]
+
+
 class ROS2StreamStart(toolhandler.ToolHandler):
     def __init__(self):
         super().__init__("ros2_stream_start", ui_only=True)

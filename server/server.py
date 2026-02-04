@@ -68,6 +68,7 @@ add_tool_handler(tools_ros2.ROS2ActionRequestResult())
 add_tool_handler(tools_ros2.ROS2ActionSubscribeFeedback())
 add_tool_handler(tools_ros2.ROS2ActionSubscribeStatus())
 add_tool_handler(tools_ros2_viewer.ROS2ViewerApp())
+add_tool_handler(tools_ros2_viewer.ROS2ViewerConfig())
 add_tool_handler(tools_ros2_viewer.ROS2StreamStart())
 add_tool_handler(tools_ros2_viewer.ROS2StreamNext())
 add_tool_handler(tools_ros2_viewer.ROS2StreamNextImage())
@@ -321,8 +322,9 @@ async def handle_read_resource(uri: str):
 
     if norm not in ("ui://ros2-viewer/app", "ros2-viewer://app"):
         raise ValueError(f"Unknown resource: {uri}")
-    from .ros2_viewer_app import ROS2_VIEWER_APP_HTML
+    from .ros2_viewer_app import get_viewer_html_with_last_config
     from mcp.server.lowlevel.helper_types import ReadResourceContents
 
-    return [ReadResourceContents(content=ROS2_VIEWER_APP_HTML, mime_type="text/html;profile=mcp-app")]
+    html = get_viewer_html_with_last_config()
+    return [ReadResourceContents(content=html, mime_type="text/html;profile=mcp-app")]
     

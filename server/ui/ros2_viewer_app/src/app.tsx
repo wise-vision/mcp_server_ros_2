@@ -42,6 +42,26 @@ interface ViewerConfig {
   autoStart?: boolean;
   preferredKind?: "image" | "pointcloud" | "auto";
   topicName?: string;
+  auto_start?: boolean;
+  preferred_kind?: "image" | "pointcloud" | "auto";
+  topic_name?: string;
+}
+
+function normalizeViewerConfig(config?: ViewerConfig): ViewerConfig | undefined {
+  if (!config) return undefined;
+  const normalized: ViewerConfig = {
+    autoStart: config.autoStart ?? config.auto_start,
+    preferredKind: config.preferredKind ?? config.preferred_kind,
+    topicName: config.topicName ?? config.topic_name,
+  };
+  if (
+    normalized.autoStart === undefined &&
+    normalized.preferredKind === undefined &&
+    !normalized.topicName
+  ) {
+    return undefined;
+  }
+  return normalized;
 }
 
 // Utility functions
@@ -170,10 +190,17 @@ function App() {
   const [status, setStatus] = useState("");
   const [isError, setIsError] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
-  const viewerConfig = (globalThis as { __ROS2_VIEWER_CONFIG__?: ViewerConfig }).__ROS2_VIEWER_CONFIG__;
+  const rawViewerConfig = (globalThis as { __ROS2_VIEWER_CONFIG__?: ViewerConfig }).__ROS2_VIEWER_CONFIG__;
+  const embeddedConfig = normalizeViewerConfig(rawViewerConfig);
+  const [remoteConfig, setRemoteConfig] = useState<ViewerConfig | undefined>(undefined);
+  const viewerConfig = remoteConfig ?? embeddedConfig;
   const autoStartRef = useRef(false);
   const lastAutoStartTopicRef = useRef<string>("");
   const autoCollapseRef = useRef(false);
+  const userSelectedRef = useRef(false);
+  const restartInFlightRef = useRef(false);
+  const currentStreamTopicRef = useRef<string>("");
+  const configFetchRef = useRef(false);
   
   const [imageSrc, setImageSrc] = useState("");
   const [pointCloudData, setPointCloudData] = useState<PointCloudData | null>(null);
@@ -300,9 +327,8 @@ function App() {
     pollLoop();
   }, [pollOnce]);
 
-  const startStream = useCallback(async () => {
-    if (running) return;
-    if (!selectedTopic) {
+  const startStreamInternal = useCallback(async (topicName: string) => {
+    if (!topicName) {
       updateStatus("Pick a topic first.", true);
       return;
     }
@@ -311,7 +337,7 @@ function App() {
     autoCollapseRef.current = false;
 
     try {
-      const selected = topics.find((t) => t.name === selectedTopic);
+      const selected = topics.find((t) => t.name === topicName);
       const inferredMode = selected ? modeForTopicType(selected.type) : null;
       if (!inferredMode) {
         updateStatus("Unsupported topic type.", true);
@@ -322,7 +348,7 @@ function App() {
         setMode(inferredMode);
       }
       const params: Record<string, unknown> = {
-        topic_name: selectedTopic,
+        topic_name: topicName,
         kind: inferredMode,
         qos_preset: "auto",
       };
@@ -344,6 +370,7 @@ function App() {
       seqRef.current = 0;
       setRunning(true);
       setPaused(false);
+      currentStreamTopicRef.current = topicName;
       updateStatus("Streaming.");
       if (shouldAutoCollapse) {
         setPanelCollapsed(true);
@@ -352,10 +379,19 @@ function App() {
     } catch (e) {
       updateStatus(e, true);
     }
-  }, [running, selectedTopic, topics, updateStatus, startPolling]);
+  }, [topics, updateStatus, startPolling]);
 
-  const stopStream = useCallback(async () => {
-    if (!running || !sessionIdRef.current) return;
+  const startStream = useCallback(async () => {
+    if (running) return;
+    if (!selectedTopic) {
+      updateStatus("Pick a topic first.", true);
+      return;
+    }
+    await startStreamInternal(selectedTopic);
+  }, [running, selectedTopic, startStreamInternal, updateStatus]);
+
+  const stopStreamInternal = useCallback(async () => {
+    if (!sessionIdRef.current) return;
     
     try {
       pollingRef.current = false;
@@ -367,11 +403,17 @@ function App() {
       seqRef.current = 0;
       setRunning(false);
       setPaused(false);
+      currentStreamTopicRef.current = "";
       updateStatus("Stopped.");
     } catch (e) {
       updateStatus(e, true);
     }
-  }, [running, updateStatus]);
+  }, [updateStatus]);
+
+  const stopStream = useCallback(async () => {
+    if (!running || !sessionIdRef.current) return;
+    await stopStreamInternal();
+  }, [running, stopStreamInternal]);
 
   const togglePause = useCallback(() => {
     if (!running) return;
@@ -391,16 +433,49 @@ function App() {
     refreshTopics();
   }, []);
 
+  // Fetch config from the server if it wasn't embedded (covers cached UI)
+  useEffect(() => {
+    if (viewerConfig) return;
+    if (configFetchRef.current) return;
+    configFetchRef.current = true;
+    const run = async () => {
+      try {
+        const res = await callTool("ros2_viewer_config", {});
+        const txt = extractFirstText(res);
+        const cfg = normalizeViewerConfig(JSON.parse(txt || "{}"));
+        if (cfg) {
+          setRemoteConfig(cfg);
+        }
+      } catch {
+        // Ignore missing tool / fetch errors; UI will fall back to defaults.
+      }
+    };
+    run();
+  }, [viewerConfig]);
+
+  const handleUserSelectTopic = useCallback((topic: string) => {
+    userSelectedRef.current = true;
+    setSelectedTopic(topic);
+  }, []);
+
   // Keep selection on supported topics (prefer configured topic/type when empty)
   useEffect(() => {
     const selected = selectedTopic ? topics.find((t) => t.name === selectedTopic) : null;
-    if (selected && modeForTopicType(selected.type) !== null) {
+    const selectedValid = !!selected && modeForTopicType(selected.type) !== null;
+    if (!selectedValid) {
+      userSelectedRef.current = false;
+    }
+    if (!userSelectedRef.current && viewerConfig?.topicName) {
+      const desired = topics.find((t) => t.name === viewerConfig.topicName)?.name;
+      if (desired && desired !== selectedTopic) {
+        setSelectedTopic(desired);
+        return;
+      }
+    }
+    if (selectedValid) {
       return;
     }
     let preferred: string | undefined;
-    if (viewerConfig?.topicName) {
-      preferred = topics.find((t) => t.name === viewerConfig.topicName)?.name;
-    }
     if (!preferred) {
       const kind = viewerConfig?.preferredKind;
       if (kind === "image") {
@@ -412,7 +487,7 @@ function App() {
       }
     }
     setSelectedTopic(preferred || "");
-  }, [topics, selectedTopic]);
+  }, [topics, selectedTopic, viewerConfig]);
 
   // Auto-start if requested via config
   useEffect(() => {
@@ -438,6 +513,21 @@ function App() {
     startStream();
   }, [selectedTopic, running, startStream]);
 
+  // Restart stream if the selected topic changes while running
+  useEffect(() => {
+    if (!running) return;
+    if (!selectedTopic) return;
+    if (selectedTopic === currentStreamTopicRef.current) return;
+    if (restartInFlightRef.current) return;
+    restartInFlightRef.current = true;
+    const run = async () => {
+      await stopStreamInternal();
+      await startStreamInternal(selectedTopic);
+      restartInFlightRef.current = false;
+    };
+    run();
+  }, [selectedTopic, running, stopStreamInternal, startStreamInternal]);
+
   return (
     <div class="wrap">
       <header>
@@ -449,7 +539,7 @@ function App() {
         <ControlPanel
           topics={topics}
           selectedTopic={selectedTopic}
-          setSelectedTopic={setSelectedTopic}
+          setSelectedTopic={handleUserSelectTopic}
           running={running}
           paused={paused}
           onRefresh={refreshTopics}
