@@ -24,6 +24,8 @@
       main { display: grid; grid-template-columns: 360px 1fr; gap: 12px; padding: 12px; min-height: 0; }
       main.is-collapsed { grid-template-columns: 48px 1fr; }
       .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 0; overflow: hidden; }
+      .control-panel { display: flex; flex-direction: column; min-height: 0; }
+      .control-panel .panel-body { flex: 1; min-height: 0; overflow: auto; }
       .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
       .panel-title { font-size: 12px; color: var(--muted); letter-spacing: 0.2px; }
       .icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 8px; font-weight: 600; }
@@ -36,10 +38,12 @@
       .row > * { flex: 1; }
       label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
       select, input, button { width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.9); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+      input[type="checkbox"] { width: auto; }
       button { cursor: pointer; }
       button.primary { background: rgba(96,165,250, 0.14); border-color: rgba(96,165,250, 0.35); }
       button.danger { background: rgba(248,113,113, 0.12); border-color: rgba(248,113,113, 0.35); }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .row .auto { flex: 0 0 auto; width: auto; padding: 8px 12px; }
       .muted { color: var(--muted); }
       .status { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; white-space: pre-wrap; max-height: 100px; overflow: auto; }
       .viewer { display: flex; align-items: center; justify-content: center; min-height: 0; }
@@ -47,6 +51,26 @@
       #img { max-width: 100%; max-height: 100%; width: auto; height: auto; border-radius: 10px; object-fit: contain; }
       #pcView { width: 100%; height: 100%; min-height: 0; }
       #pcCanvas { width: 100%; height: 100%; border-radius: 10px; border: 1px solid var(--border); background: #05070a; }
+      #plotView { width: 100%; height: 100%; position: relative; min-height: 0; }
+      #plotCanvas { width: 100%; height: 100%; border-radius: 10px; border: 1px solid var(--border); background: #05070a; }
+      .plot-controls { display: flex; flex-direction: column; gap: 8px; }
+      .field-meta { color: var(--muted); font-size: 12px; }
+      .field-list { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: rgba(15, 23, 42, 0.6); display: grid; gap: 6px; }
+      .field-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      .field-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .combo { position: relative; }
+      .field-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 180px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 42, 0.95); display: grid; gap: 2px; padding: 6px; z-index: 20; }
+      .field-suggest-item { width: 100%; text-align: left; background: transparent; border: 0; color: var(--text); padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+      .field-suggest-item:hover { background: rgba(96,165,250, 0.18); }
+      .field-suggest-item.is-selected { background: rgba(52,211,153, 0.16); }
+      .field-suggest-empty { color: var(--muted); font-size: 12px; padding: 6px 8px; }
+      .advanced { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+      .advanced summary { cursor: pointer; }
+      .advanced[open] { padding-bottom: 4px; }
+      .plot-legend { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; max-width: 45%; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: rgba(11, 15, 20, 0.65); font-size: 11px; }
+      .legend-item { display: flex; align-items: center; gap: 6px; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+      .legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .hint { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; min-height: 16px; }
       .ok { color: var(--ok); }
       .ok-wrap { display: inline-flex; align-items: center; gap: 6px; }

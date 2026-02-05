@@ -366,6 +366,9 @@ class ROS2Manager:
         elif kind == "pointcloud":
             if topic_type != "sensor_msgs/msg/PointCloud2":
                 return {"error": f"Topic '{topic_name}' is '{topic_type}', not a PointCloud2."}
+        elif kind == "message":
+            # Allow any topic type for generic message streaming.
+            pass
         else:
             return {"error": f"Unknown stream kind: {kind}"}
 
@@ -434,11 +437,17 @@ class ROS2Manager:
                     max_height=session.max_height,
                     jpeg_quality=session.jpeg_quality,
                 )
-            else:
+            elif session.kind == "pointcloud":
                 payload = self._extract_pointcloud2_xyz_b64(msg, max_points=session.max_points)
+            else:
+                payload = {"message": session.serialize_msg(msg)}
 
-            if isinstance(payload, dict) and payload.get("error"):
-                session.last_error = str(payload.get("error"))
+            if isinstance(payload, dict):
+                err = payload.get("error")
+                if not err and isinstance(payload.get("message"), dict):
+                    err = payload["message"].get("error")
+                if err:
+                    session.last_error = str(err)
 
             header = getattr(msg, "header", None)
             if header is not None:
@@ -896,29 +905,41 @@ class _MCPStreamSession:
         self.thread: threading.Thread | None = None
     def serialize_msg(self, msg: Any) -> Any:
         try:
+            max_list_items = 512
+            max_bytes = 2048
             if isinstance(msg, memoryview):
                 try:
-                    return list(msg.cast("d"))
+                    data = list(msg.cast("d"))
                 except TypeError:
-                    return list(msg)
+                    data = list(msg)
+                return data[:max_list_items]
 
             elif isinstance(msg, (bytes, bytearray)):
-                return list(msg)
+                return list(msg[:max_bytes])
+
+            elif isinstance(msg, array.array):
+                data = msg.tolist()
+                return data[:max_list_items]
+
+            elif isinstance(msg, np.ndarray):
+                data = msg.flatten().tolist()
+                return data[:max_list_items]
 
             elif isinstance(msg, (int, float, str, bool)) or msg is None:
                 return msg
 
-            elif hasattr(msg, "data"):
-                return self.serialize_msg(msg.data)
-
             elif isinstance(msg, (list, tuple)):
-                return [self.serialize_msg(item) for item in msg]
+                seq = msg[:max_list_items] if len(msg) > max_list_items else msg
+                return [self.serialize_msg(item) for item in seq]
 
             elif hasattr(msg, "__slots__"):
                 return {
                     slot: self.serialize_msg(getattr(msg, slot))
                     for slot in msg.__slots__
                 }
+
+            elif hasattr(msg, "data"):
+                return self.serialize_msg(msg.data)
 
             elif isinstance(msg, dict):
                 return {key: self.serialize_msg(value) for key, value in msg.items()}

@@ -296,7 +296,7 @@ async def handle_list_resources() -> list[Resource]:
         Resource(
             uri="ui://ros2-viewer/app",
             name="ROS 2 Viewer",
-            description="Interactive viewer UI for Image/PointCloud2 (requires MCP client Apps/resource rendering support).",
+            description="Interactive viewer UI for Image/PointCloud2/Plot (requires MCP client Apps/resource rendering support).",
             mimeType="text/html;profile=mcp-app",
         )
         ,

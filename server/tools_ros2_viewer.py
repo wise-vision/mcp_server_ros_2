@@ -24,14 +24,19 @@ class ROS2ViewerApp(toolhandler.ToolHandler):
     def get_tool_description(self) -> Tool:
         return Tool(
             name=self.name,
-            description="Open an interactive ROS 2 viewer app (Image + PointCloud2) for MCP clients that support Apps/HTML resources.",
+            description="Open an interactive ROS 2 viewer app (Image + PointCloud2 + Plot) for MCP clients that support Apps/HTML resources.",
             _meta={"ui": {"resourceUri": "ui://ros2-viewer/app"}},
             inputSchema={
                 "type": "object",
                 "properties": {
                     "auto_start": {"type": "boolean", "default": True},
-                    "preferred_kind": {"type": "string", "enum": ["image", "pointcloud", "auto"]},
+                    "preferred_kind": {"type": "string", "enum": ["image", "pointcloud", "plot", "auto"]},
                     "topic_name": {"type": "string"},
+                    "plot_fields": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional list of plot field paths to preselect in Plot mode.",
+                    },
                 },
             },
         )
@@ -47,6 +52,8 @@ class ROS2ViewerApp(toolhandler.ToolHandler):
                 config["preferredKind"] = str(args.get("preferred_kind"))
             if "topic_name" in args:
                 config["topicName"] = str(args.get("topic_name"))
+            if "plot_fields" in args and isinstance(args.get("plot_fields"), list):
+                config["plotFields"] = [str(x) for x in args.get("plot_fields") if str(x).strip()]
         html = get_viewer_html(config if config else None)
         return [
             EmbeddedResource(
@@ -96,12 +103,12 @@ class ROS2StreamStart(toolhandler.ToolHandler):
     def get_tool_description(self) -> Tool:
         return Tool(
             name=self.name,
-            description="Start a keep-latest stream session for a ROS 2 topic (Image/CompressedImage/PointCloud2). Returns a session_id. UI/App-only tool.",
+            description="Start a keep-latest stream session for a ROS 2 topic (Image/CompressedImage/PointCloud2/Generic). Returns a session_id. UI/App-only tool.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "topic_name": {"type": "string"},
-                    "kind": {"type": "string", "enum": ["image", "pointcloud"]},
+                    "kind": {"type": "string", "enum": ["image", "pointcloud", "message"]},
                     "target_fps": {"type": "number", "description": "Soft cap for processing frames (keep-latest, drops when over).", "default": 20.0},
                     "max_width": {"type": "integer", "default": 960},
                     "max_height": {"type": "integer", "default": 540},
