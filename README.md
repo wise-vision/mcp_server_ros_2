@@ -161,3 +161,8 @@ We built this server to make AI‑assisted ROS 2 development fast and reliable. 
 - Use a simple stdio transport to avoid network complexity
 
 After dogfooding it, we open‑sourced the project to help the broader ROS 2 community build faster with AI. It’s now useful not only for development, but also for controlling robots, running QoS experiments, and analyzing live data and robot/swarm state. The project is actively maintained—features and improvements ship regularly based on user feedback. If this project helps you, please star the repo and share your use case!
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/wisevision-mcp-server-ros-2).
+
