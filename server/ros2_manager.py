@@ -15,6 +15,8 @@ import importlib
 import os
 import threading
 from typing import Any
+import secrets
+import struct
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py import get_interfaces
 from rosidl_runtime_py.utilities import get_service, get_message
@@ -108,6 +110,444 @@ class ROS2Manager:
         self.node = ServiceNode()
         self._discovery_warmed_up = False
         self._discovery_warmup_lock = threading.Lock()
+        self._streams_lock = threading.Lock()
+        self._streams: dict[str, "_MCPStreamSession"] = {}
+
+    def _get_topic_type(self, topic_name: str) -> str | None:
+        try:
+            for name, types in self.node.get_topic_names_and_types():
+                if name == topic_name and types:
+                    return types[0]
+        except Exception:
+            return None
+        return None
+
+    def _new_session_id(self) -> str:
+        # Short, URL-safe session id for use by UI clients.
+        return secrets.token_urlsafe(10)
+
+    def _load_msg_class(self, msg_type: str):
+        parts = msg_type.split("/")
+        if len(parts) == 3:
+            pkg, _, msg = parts
+        elif len(parts) == 2:
+            pkg, msg = parts
+        else:
+            raise ValueError(f"Invalid message type format: {msg_type}")
+        module = importlib.import_module(f"{pkg}.msg")
+        return getattr(module, msg)
+
+    def _encode_image_msg_to_jpeg_b64(
+        self,
+        msg: Any,
+        msg_type: str,
+        *,
+        max_width: int | None,
+        max_height: int | None,
+        jpeg_quality: int,
+    ) -> dict:
+        if msg_type == "sensor_msgs/msg/CompressedImage":
+            fmt = getattr(msg, "format", "") or ""
+            data = getattr(msg, "data", b"") or b""
+            if isinstance(data, (bytes, bytearray, memoryview)) and ("jpeg" in fmt.lower() or "jpg" in fmt.lower()):
+                return {
+                    "mimeType": "image/jpeg",
+                    "data": base64.b64encode(bytes(data)).decode("utf-8"),
+                }
+
+            try:
+                pil_img = PILImage.open(io.BytesIO(bytes(data)))
+                if pil_img.mode not in ("RGB", "RGBA", "L"):
+                    pil_img = pil_img.convert("RGB")
+            except Exception as e:
+                return {"error": f"Failed to decode CompressedImage: {e}"}
+        elif msg_type == "sensor_msgs/msg/Image":
+            enc = getattr(msg, "encoding", "") or ""
+            width = int(getattr(msg, "width", 0) or 0)
+            height = int(getattr(msg, "height", 0) or 0)
+            raw = getattr(msg, "data", b"") or b""
+
+            try:
+                if enc in ("rgb8", "bgr8", "rgba8"):
+                    channels = 4 if enc == "rgba8" else 3
+                    img_array = np.frombuffer(raw, dtype=np.uint8).reshape((height, width, channels))
+                    if enc == "bgr8":
+                        img_array = img_array[..., ::-1]
+                    mode = "RGBA" if channels == 4 else "RGB"
+                    pil_img = PILImage.fromarray(img_array, mode=mode)
+                elif enc == "mono8":
+                    img_array = np.frombuffer(raw, dtype=np.uint8).reshape((height, width))
+                    pil_img = PILImage.fromarray(img_array, mode="L")
+                else:
+                    return {"error": f"Unsupported Image encoding: {enc}"}
+            except Exception as e:
+                return {"error": f"Failed to process Image: {e}"}
+        else:
+            return {"error": f"Unsupported message type for image stream: {msg_type}"}
+
+        if max_width and max_height:
+            try:
+                w, h = pil_img.size
+                scale = min(max_width / max(w, 1), max_height / max(h, 1), 1.0)
+                if scale < 1.0:
+                    pil_img = pil_img.resize((int(w * scale), int(h * scale)), PILImage.BILINEAR)
+            except Exception:
+                pass
+
+        if pil_img.mode == "RGBA":
+            pil_img = pil_img.convert("RGB")
+
+        buffer = io.BytesIO()
+        try:
+            q = int(jpeg_quality)
+            q = max(10, min(95, q))
+            pil_img.save(buffer, format="JPEG", quality=q)
+        except Exception as e:
+            return {"error": f"Failed to encode JPEG: {e}"}
+
+        return {
+            "mimeType": "image/jpeg",
+            "data": base64.b64encode(buffer.getvalue()).decode("utf-8"),
+        }
+
+    def _extract_pointcloud2_xyz_b64(self, msg: Any, *, max_points: int) -> dict:
+        try:
+            fields = {f.name: f for f in getattr(msg, "fields", [])}
+            if not all(k in fields for k in ("x", "y", "z")):
+                return {"error": "PointCloud2 is missing x/y/z fields."}
+
+            data = getattr(msg, "data", b"") or b""
+            data_bytes = bytes(data)
+
+            endian = ">" if bool(getattr(msg, "is_bigendian", False)) else "<"
+            off_x = int(fields["x"].offset)
+            off_y = int(fields["y"].offset)
+            off_z = int(fields["z"].offset)
+
+            # Check for color fields (rgb packed float, rgba, or separate r/g/b)
+            has_rgb_packed = "rgb" in fields
+            has_rgba_packed = "rgba" in fields
+            has_rgb_separate = all(c in fields for c in ("r", "g", "b"))
+            has_intensity = "intensity" in fields
+
+            off_rgb = None
+            off_rgba = None
+            off_r = off_g = off_b = None
+            off_intensity = None
+
+            if has_rgb_packed:
+                off_rgb = int(fields["rgb"].offset)
+            elif has_rgba_packed:
+                off_rgba = int(fields["rgba"].offset)
+            elif has_rgb_separate:
+                off_r = int(fields["r"].offset)
+                off_g = int(fields["g"].offset)
+                off_b = int(fields["b"].offset)
+            elif has_intensity:
+                off_intensity = int(fields["intensity"].offset)
+
+            step = int(getattr(msg, "point_step", 0) or 0)
+            width = int(getattr(msg, "width", 0) or 0)
+            height = int(getattr(msg, "height", 0) or 0)
+            n = width * height
+            if step <= 0 or n <= 0:
+                return {"error": "PointCloud2 has invalid dimensions/point_step."}
+
+            if max_points <= 0:
+                stride = 1
+            else:
+                stride = max(1, n // max_points)
+            out_pos = array.array("f")
+            out_col = array.array("f")
+            intensities = []
+            has_colors = has_rgb_packed or has_rgba_packed or has_rgb_separate
+            unpack = struct.unpack_from
+
+            # First pass: collect positions and intensities
+            for i in range(0, n, stride):
+                base = i * step
+                try:
+                    x = unpack(endian + "f", data_bytes, base + off_x)[0]
+                    y = unpack(endian + "f", data_bytes, base + off_y)[0]
+                    z = unpack(endian + "f", data_bytes, base + off_z)[0]
+                except Exception:
+                    continue
+                if not (np.isfinite(x) and np.isfinite(y) and np.isfinite(z)):
+                    continue
+                out_pos.extend((float(x), float(y), float(z)))
+
+                # Extract color or intensity
+                if has_colors:
+                    try:
+                        if off_rgb is not None:
+                            # RGB packed as float (reinterpret as uint32)
+                            rgb_float = unpack(endian + "f", data_bytes, base + off_rgb)[0]
+                            rgb_int = struct.unpack("I", struct.pack("f", rgb_float))[0]
+                            r = ((rgb_int >> 16) & 0xFF) / 255.0
+                            g = ((rgb_int >> 8) & 0xFF) / 255.0
+                            b = (rgb_int & 0xFF) / 255.0
+                        elif off_rgba is not None:
+                            # RGBA packed as float (reinterpret as uint32)
+                            rgba_float = unpack(endian + "f", data_bytes, base + off_rgba)[0]
+                            rgba_int = struct.unpack("I", struct.pack("f", rgba_float))[0]
+                            r = ((rgba_int >> 16) & 0xFF) / 255.0
+                            g = ((rgba_int >> 8) & 0xFF) / 255.0
+                            b = (rgba_int & 0xFF) / 255.0
+                        elif off_r is not None:
+                            # Separate r/g/b fields (usually uint8)
+                            r = unpack("B", data_bytes, base + off_r)[0] / 255.0
+                            g = unpack("B", data_bytes, base + off_g)[0] / 255.0
+                            b = unpack("B", data_bytes, base + off_b)[0] / 255.0
+                        else:
+                            r = g = b = 0.7
+                        out_col.extend((float(r), float(g), float(b)))
+                    except Exception:
+                        out_col.extend((0.7, 0.7, 0.7))
+                elif off_intensity is not None:
+                    try:
+                        intensity = unpack(endian + "f", data_bytes, base + off_intensity)[0]
+                        if np.isfinite(intensity):
+                            intensities.append(intensity)
+                        else:
+                            intensities.append(0.0)
+                    except Exception:
+                        intensities.append(0.0)
+
+            # Convert intensities to colors using a rainbow colormap (like RViz)
+            if intensities and not has_colors:
+                min_i = min(intensities) if intensities else 0.0
+                max_i = max(intensities) if intensities else 1.0
+                range_i = max_i - min_i if max_i > min_i else 1.0
+
+                for intensity in intensities:
+                    # Normalize to 0-1
+                    t = (intensity - min_i) / range_i
+                    # Rainbow colormap: blue -> cyan -> green -> yellow -> red
+                    if t < 0.25:
+                        r, g, b = 0.0, t * 4, 1.0
+                    elif t < 0.5:
+                        r, g, b = 0.0, 1.0, 1.0 - (t - 0.25) * 4
+                    elif t < 0.75:
+                        r, g, b = (t - 0.5) * 4, 1.0, 0.0
+                    else:
+                        r, g, b = 1.0, 1.0 - (t - 0.75) * 4, 0.0
+                    out_col.extend((float(r), float(g), float(b)))
+
+            result = {
+                "positionsF32B64": base64.b64encode(out_pos.tobytes()).decode("utf-8"),
+                "pointCount": len(out_pos) // 3,
+            }
+            if len(out_col) > 0:
+                result["colorsF32B64"] = base64.b64encode(out_col.tobytes()).decode("utf-8")
+
+            return result
+        except Exception as e:
+            return {"error": f"Failed to decode PointCloud2: {e}"}
+
+    def start_stream(
+        self,
+        *,
+        topic_name: str,
+        kind: str,
+        target_fps: float | None = None,
+        max_width: int | None = None,
+        max_height: int | None = None,
+        jpeg_quality: int = 80,
+        max_points: int | None = None,
+        qos_preset: str = "auto",
+    ) -> dict:
+        topic_type = self._get_topic_type(topic_name)
+        if not topic_type:
+            return {"error": f"Unknown topic: {topic_name}"}
+
+        if kind == "image":
+            if topic_type not in ("sensor_msgs/msg/Image", "sensor_msgs/msg/CompressedImage"):
+                return {"error": f"Topic '{topic_name}' is '{topic_type}', not an Image/CompressedImage."}
+        elif kind == "pointcloud":
+            if topic_type != "sensor_msgs/msg/PointCloud2":
+                return {"error": f"Topic '{topic_name}' is '{topic_type}', not a PointCloud2."}
+        elif kind == "message":
+            # Allow any topic type for generic message streaming.
+            pass
+        else:
+            return {"error": f"Unknown stream kind: {kind}"}
+
+        try:
+            msg_class = self._load_msg_class(topic_type)
+        except Exception as e:
+            return {"error": f"Failed to import message class for {topic_type}: {e}"}
+
+        session_id = self._new_session_id()
+        suffix = "".join(ch for ch in session_id if ch.isalnum())[:8] or secrets.token_hex(4)
+        node_name = f"mcp_stream_{suffix}"
+        try:
+            stream_node = Node(node_name)
+        except Exception as e:
+            return {"error": f"Failed to create stream node: {e}"}
+        # Some camera publishers (sensor_msgs/Image/CompressedImage) use sensor_data QoS
+        # (best-effort, volatile). In early discovery windows, publisher introspection can
+        # return empty and default QoS may fail to match. Provide an "auto" fallback.
+        qos_choice = (qos_preset or "auto").strip().lower()
+        if qos_choice == "sensor_data":
+            qos = QoSPresetProfiles.SENSOR_DATA.value
+        elif qos_choice == "system_default":
+            qos = QoSPresetProfiles.SYSTEM_DEFAULT.value
+        else:
+            qos = self.get_qos_profile_for_topic(stream_node, topic_name)
+            try:
+                pubs = stream_node.get_publishers_info_by_topic(topic_name)
+            except Exception:
+                pubs = []
+            # If discovery hasn't surfaced publishers yet, prefer a RELIABLE default first.
+            # This matches many camera pipelines publishing RELIABLE CompressedImage.
+            if not pubs and kind in ("image", "pointcloud"):
+                qos = QoSPresetProfiles.SYSTEM_DEFAULT.value
+
+        max_points_val = 0 if max_points is None else int(max_points)
+        if max_points_val < 0:
+            max_points_val = 0
+
+        session = _MCPStreamSession(
+            session_id=session_id,
+            kind=kind,
+            topic_name=topic_name,
+            topic_type=topic_type,
+            node=stream_node,
+            target_fps=float(target_fps) if target_fps is not None else None,
+            max_width=max_width,
+            max_height=max_height,
+            jpeg_quality=int(jpeg_quality),
+            max_points=max_points_val,
+        )
+
+        def _cb(msg):
+            now = time.monotonic()
+            session.rx_count += 1
+            session.last_rx_monotonic = now
+            if session.target_fps and session.target_fps > 0:
+                min_dt = 1.0 / session.target_fps
+                if (now - session.last_emit_monotonic) < min_dt:
+                    return
+
+            if session.kind == "image":
+                payload = self._encode_image_msg_to_jpeg_b64(
+                    msg,
+                    session.topic_type,
+                    max_width=session.max_width,
+                    max_height=session.max_height,
+                    jpeg_quality=session.jpeg_quality,
+                )
+            elif session.kind == "pointcloud":
+                payload = self._extract_pointcloud2_xyz_b64(msg, max_points=session.max_points)
+            else:
+                payload = {"message": session.serialize_msg(msg)}
+
+            if isinstance(payload, dict):
+                err = payload.get("error")
+                if not err and isinstance(payload.get("message"), dict):
+                    err = payload["message"].get("error")
+                if err:
+                    session.last_error = str(err)
+
+            header = getattr(msg, "header", None)
+            if header is not None:
+                stamp = getattr(header, "stamp", None)
+                if stamp is not None:
+                    payload["stamp"] = {"sec": int(getattr(stamp, "sec", 0)), "nanosec": int(getattr(stamp, "nanosec", 0))}
+                payload["frame_id"] = str(getattr(header, "frame_id", ""))
+
+            with session.lock:
+                session.seq += 1
+                payload["seq"] = session.seq
+                session.last_payload = payload
+                session.last_emit_monotonic = now
+
+        session.subscription = stream_node.create_subscription(msg_class, topic_name, _cb, qos)
+        session.executor = SingleThreadedExecutor(context=stream_node.context)
+        session.executor.add_node(stream_node)
+
+        def _spin():
+            try:
+                while rclpy.ok() and stream_node.context.ok() and not session.stop_event.is_set():
+                    session.executor.spin_once(timeout_sec=0.05)
+            finally:
+                try:
+                    session.executor.remove_node(stream_node)
+                except Exception:
+                    pass
+                try:
+                    session.executor.shutdown()
+                except Exception:
+                    pass
+                try:
+                    stream_node.destroy_node()
+                except Exception:
+                    pass
+
+        session.thread = threading.Thread(target=_spin, name=f"mcp_stream_{session_id}", daemon=True)
+        session.thread.start()
+
+        with self._streams_lock:
+            self._streams[session_id] = session
+
+        return {
+            "session_id": session_id,
+            "kind": kind,
+            "topic_name": topic_name,
+            "topic_type": topic_type,
+        }
+
+    def stream_next(self, *, session_id: str, after_seq: int | None = None) -> dict:
+        with self._streams_lock:
+            session = self._streams.get(session_id)
+        if not session:
+            return {"error": f"Unknown session_id: {session_id}"}
+
+        with session.lock:
+            payload = dict(session.last_payload) if session.last_payload else None
+            cur_seq = session.seq
+            rx_count = session.rx_count
+            last_rx = session.last_rx_monotonic
+            last_err = session.last_error
+
+        if payload is None:
+            out = {"available": False, "seq": cur_seq, "rx_count": rx_count}
+            if last_rx:
+                out["last_rx_age_sec"] = round(max(0.0, time.monotonic() - last_rx), 3)
+            if last_err:
+                out["last_error"] = last_err
+            return out
+
+        if after_seq is not None and cur_seq <= int(after_seq):
+            out = {"available": False, "seq": cur_seq, "rx_count": rx_count}
+            if last_rx:
+                out["last_rx_age_sec"] = round(max(0.0, time.monotonic() - last_rx), 3)
+            if last_err:
+                out["last_error"] = last_err
+            return out
+
+        payload["available"] = True
+        payload["rx_count"] = rx_count
+        if last_rx:
+            payload["last_rx_age_sec"] = round(max(0.0, time.monotonic() - last_rx), 3)
+        if last_err and not payload.get("error"):
+            payload["last_error"] = last_err
+        return payload
+
+    def stop_stream(self, *, session_id: str) -> dict:
+        with self._streams_lock:
+            session = self._streams.pop(session_id, None)
+        if not session:
+            return {"error": f"Unknown session_id: {session_id}"}
+
+        session.stop_event.set()
+        try:
+            if session.thread:
+                session.thread.join(timeout=2.0)
+        except Exception:
+            pass
+
+        return {"stopped": True, "session_id": session_id}
 
     def _graph_snapshot(self) -> tuple[tuple[tuple[str, tuple[str, ...]], ...], tuple[tuple[str, tuple[str, ...]], ...]]:
         topics = tuple(
@@ -353,7 +793,6 @@ class ROS2Manager:
 
         except Exception as e:
             return {"error": str(e)}
-
     def list_interfaces(self):
         interfaces = get_interfaces()
         result = []
@@ -424,31 +863,83 @@ class ROS2Manager:
         except Exception as e:
             return {"error": str(e)}
 
+
+class _MCPStreamSession:
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        kind: str,
+        topic_name: str,
+        topic_type: str,
+        node: Node,
+        target_fps: float | None,
+        max_width: int | None,
+        max_height: int | None,
+        jpeg_quality: int,
+        max_points: int,
+    ):
+        self.session_id = session_id
+        self.kind = kind
+        self.topic_name = topic_name
+        self.topic_type = topic_type
+        self.node = node
+
+        self.target_fps = target_fps
+        self.max_width = max_width
+        self.max_height = max_height
+        self.jpeg_quality = jpeg_quality
+        self.max_points = max_points
+
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.seq = 0
+        self.rx_count = 0
+        self.last_rx_monotonic = 0.0
+        self.last_error: str | None = None
+        self.last_payload: dict | None = None
+        self.last_emit_monotonic = 0.0
+
+        self.subscription = None
+        self.executor: SingleThreadedExecutor | None = None
+        self.thread: threading.Thread | None = None
     def serialize_msg(self, msg: Any) -> Any:
         try:
+            max_list_items = 512
+            max_bytes = 2048
             if isinstance(msg, memoryview):
                 try:
-                    return list(msg.cast("d"))
+                    data = list(msg.cast("d"))
                 except TypeError:
-                    return list(msg)
+                    data = list(msg)
+                return data[:max_list_items]
 
             elif isinstance(msg, (bytes, bytearray)):
-                return list(msg)
+                return list(msg[:max_bytes])
+
+            elif isinstance(msg, array.array):
+                data = msg.tolist()
+                return data[:max_list_items]
+
+            elif isinstance(msg, np.ndarray):
+                data = msg.flatten().tolist()
+                return data[:max_list_items]
 
             elif isinstance(msg, (int, float, str, bool)) or msg is None:
                 return msg
 
-            elif hasattr(msg, "data"):
-                return self.serialize_msg(msg.data)
-
             elif isinstance(msg, (list, tuple)):
-                return [self.serialize_msg(item) for item in msg]
+                seq = msg[:max_list_items] if len(msg) > max_list_items else msg
+                return [self.serialize_msg(item) for item in seq]
 
             elif hasattr(msg, "__slots__"):
                 return {
                     slot: self.serialize_msg(getattr(msg, slot))
                     for slot in msg.__slots__
                 }
+
+            elif hasattr(msg, "data"):
+                return self.serialize_msg(msg.data)
 
             elif isinstance(msg, dict):
                 return {key: self.serialize_msg(value) for key, value in msg.items()}
@@ -983,7 +1474,6 @@ class ROS2Manager:
         except Exception as e:
             return {"error": str(e)}
 
-
     def action_request_result(
         self,
         action_name: str,
@@ -1067,7 +1557,7 @@ class ROS2Manager:
 
         except Exception as e:
             return {"error": str(e)}
-        
+
     def action_subscribe_feedback(
         self,
         action_name: str,
@@ -1167,8 +1657,7 @@ class ROS2Manager:
                 except Exception:
                     # Ignore errors extracting goal_id; goal_id_hex will remain None if extraction fails.
                     pass
-        
- 
+
     def action_subscribe_status(
         self,
         action_name: str,
@@ -1220,6 +1709,15 @@ class ROS2Manager:
                                 "status": GOAL_STATUS.get(code, str(code)),
                             }
                         )
+                    try:
+                        stamp = getattr(msg, "stamp", None)
+                        frame["stamp"] = (
+                            {"sec": int(getattr(stamp, "sec", 0)),
+                            "nanosec": int(getattr(stamp, "nanosec", 0))}
+                            if stamp else None
+                        )
+                    except Exception:
+                        frame["stamp"] = None
                     out["frames"].append(frame)
                 except Exception as e:
                     out.setdefault("warn", []).append(str(e))
@@ -1230,25 +1728,42 @@ class ROS2Manager:
             self._tmp_subs.append(sub)
 
             end_time = self.node.get_clock().now().nanoseconds + int(duration_sec * 1e9)
-
-            def _count_statuses():
-                return sum(len(f.get("statuses", [])) for f in out["frames"])
-
             while self.node.get_clock().now().nanoseconds < end_time:
-                if _count_statuses() >= max_messages:
+                if len(out["frames"]) >= max_messages:
                     break
                 rclpy.spin_once(self.node, timeout_sec=0.1)
-
-            # Clean up subscription
-            self.node.destroy_subscription(sub)
-            if hasattr(self, "_tmp_subs"):
-                try:
-                    self._tmp_subs.remove(sub)
-                except ValueError:
-                    # Subscription not found in _tmp_subs; safe to ignore.  
-                    pass
 
             return out
 
         except Exception as e:
             return {"error": str(e)}
+
+        finally:
+            try:
+                if sub is not None:
+                    self.node.destroy_subscription(sub)
+            finally:
+                try:
+                    if sub is not None and hasattr(self, "_tmp_subs"):
+                        self._tmp_subs = [s for s in self._tmp_subs if s is not sub]
+                except Exception:
+                    pass
+
+
+# Backward-compatibility: during incremental edits, some ROS2Manager methods may
+# temporarily live on _MCPStreamSession. Expose them on ROS2Manager so existing
+# tools keep working.
+for _name in (
+    "serialize_msg",
+    "subscribe_topic",
+    "call_get_messages_service_any",
+    "publish_to_topic",
+    "shutdown",
+    "send_action_goal",
+    "cancel_action_goal",
+    "action_request_result",
+    "action_subscribe_feedback",
+    "action_subscribe_status",
+):
+    if not hasattr(ROS2Manager, _name) and hasattr(_MCPStreamSession, _name):
+        setattr(ROS2Manager, _name, getattr(_MCPStreamSession, _name))

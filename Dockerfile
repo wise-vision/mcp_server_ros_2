@@ -1,4 +1,14 @@
 ARG ROS_DISTRO=jazzy
+FROM node:20-bookworm-slim AS ui_build
+WORKDIR /ui
+COPY server/ui/ros2_viewer_app/package.json /ui/package.json
+COPY server/ui/ros2_viewer_app/build.mjs /ui/build.mjs
+COPY server/ui/ros2_viewer_app/tsconfig.json /ui/tsconfig.json
+COPY server/ui/ros2_viewer_app/index.template.html /ui/index.template.html
+COPY server/ui/ros2_viewer_app/src /ui/src
+RUN npm install
+RUN npm run build
+
 FROM wisevision/ros_with_wisevision_msgs_and_wisevision_core:${ROS_DISTRO}
 
 LABEL io.modelcontextprotocol.server.name="io.github.wise-vision/ros2_mcp"
@@ -6,13 +16,15 @@ LABEL io.modelcontextprotocol.server.name="io.github.wise-vision/ros2_mcp"
 ENV MCP_CUSTOM_PROMPTS="false" \
     MCP_PROMPTS_LOCAL="false" \
     MCP_PROMPTS_PATH="/app/ros2_mcp_prompts" \
-    MCP_PROMPTS_MODULE="extension_prompts"
+    MCP_PROMPTS_MODULE="extension_prompts" \
+    RMW_FASTRTPS_USE_SHM="0"
 
 RUN apt-get update && apt-get install -y \
     python3-pip \
     build-essential \
     ca-certificates \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-std-msgs \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-sensor-msgs \
@@ -52,6 +64,7 @@ RUN if [ "$ROS_DISTRO" = "humble" ]; then \
 
 WORKDIR /app
 COPY . /app
+COPY --from=ui_build /ui/index.html /app/server/ui/ros2_viewer_app/index.html
 
 RUN uv venv
 
