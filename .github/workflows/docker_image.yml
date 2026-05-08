@@ -28,7 +28,15 @@ jobs:
 
       - name: Docker build (${{ matrix.ros_distro }})
         run: |
-          docker build -t ros2_mcp  --build-arg ROS_DISTRO=${{ matrix.ros_distro }} .
+          docker build -t ros2_mcp --build-arg ROS_DISTRO=${{ matrix.ros_distro }} .
+
+      - name: ROS 2 type support smoke test (${{ matrix.ros_distro }})
+        run: |
+          docker run --rm --entrypoint bash ros2_mcp -lc '
+            source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+            source /root/wisevision_ws/install/setup.bash
+            /app/.venv/bin/python3 -c "from builtin_interfaces.msg import Time; from rclpy.serialization import serialize_message; Time.__import_type_support__(); serialize_message(Time(sec=1, nanosec=2)); print(\"ROS 2 type support smoke test passed\")"
+          '
 
   build_and_push_arm64:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
