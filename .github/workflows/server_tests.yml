@@ -30,7 +30,12 @@ jobs:
           python3-colcon-common-extensions \
           ros-humble-example-interfaces \
           ros-humble-mavros-msgs \
-          ros-humble-action-tutorials-interfaces
+          ros-humble-action-tutorials-interfaces \
+          curl \
+          ca-certificates \
+          gnupg
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y nodejs
         python3 -m pip install --upgrade pip
         pip install uv
 
@@ -39,6 +44,12 @@ jobs:
         uv venv .venv
         uv pip install --upgrade pip
         uv sync --dev  # installs deps from uv.lock
+
+    - name: Build ROS 2 Viewer UI
+      run: |
+        cd server/ui/ros2_viewer_app
+        npm ci
+        npm run build
 
 
 
