@@ -7,7 +7,7 @@ on:
 
 jobs:
   sync-main-to-dev:
-    runs-on: wisevision-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4     
