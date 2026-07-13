@@ -59,10 +59,10 @@ appointed representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement via the
-[wise-vision GitHub organization](https://github.com/wise-vision) — open a
-private security advisory or contact the maintainers listed in the
-organization profile. All complaints will be reviewed and investigated
+reported to the community leaders responsible for enforcement:
+direct message a maintainer on the project [Discord server](https://discord.gg/9aSw6HbUaw)
+(private DM, not a public channel), or contact the lead maintainer
+[@adamkrawczyk](https://github.com/adamkrawczyk) directly on GitHub. All complaints will be reviewed and investigated
 promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of

@@ -25,7 +25,6 @@ repos:
 # Follow-up PR: drop server/ and tests/ from the exclude, run
 # `pre-commit run --all-files`, and land the resulting reformat on its own.
 #
-# .github/workflows/ is also excluded here purely for CI/CD checked-out
-# scope discipline (workflow file edits require the OAuth `workflow`
-# scope, which this automation's credential does not carry) — hooks
-# still apply normally to it in local dev if you have that scope.
+# .github/workflows/ is excluded so hook autofixes never rewrite CI
+# definitions as a side effect of an unrelated commit; workflow changes
+# should always be deliberate, reviewed edits.
