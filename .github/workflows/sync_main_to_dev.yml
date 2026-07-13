@@ -17,9 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5     
-        with: 
-          fetch-depth: 0 
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # The default GITHUB_TOKEN cannot push changes that touch
+          # .github/workflows/* (GitHub refuses workflow-file writes from the
+          # Actions token — there is no permissions: scope that grants it).
+          # A main->dev sync that carries a workflow change is therefore
+          # rejected. Persist a PAT with `workflow` scope so the push succeeds.
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Set up Git
         run: |

@@ -1,1 +1,5 @@
 docs/
+.venv/
+venv/
+__pycache__/
+*.egg-info/

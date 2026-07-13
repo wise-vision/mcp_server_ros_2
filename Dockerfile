@@ -19,7 +19,11 @@ ENV MCP_CUSTOM_PROMPTS="false" \
     MCP_PROMPTS_MODULE="extension_prompts" \
     RMW_FASTRTPS_USE_SHM="0"
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    if [ "$ROS_DISTRO" = "jazzy" ]; then \
+        apt-get upgrade -y ros-${ROS_DISTRO}-rosidl-typesupport-fastrtps-cpp; \
+    fi && \
+    apt-get install -y \
     python3-pip \
     build-essential \
     ca-certificates \

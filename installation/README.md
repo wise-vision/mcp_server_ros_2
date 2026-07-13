@@ -59,37 +59,6 @@ Before you begin, ensure you have the following:
   }
 }
 ```
-### DDS discovery warm-up (Docker)
-
-If the first tool invocation returns an incomplete list of topics/services, DDS discovery may still be in progress.
-You can enable/tune a one-time warm-up on the first tool call via environment variables:
-
-- `MCP_ROS_DISCOVERY_WARMUP` (true/false; default: auto-enabled in containers)
-- `MCP_ROS_DISCOVERY_STABLE_SEC` (default: `1.0`, increase if needed)
-- `MCP_ROS_DISCOVERY_TIMEOUT_SEC` (default: `5.0`, increase if needed)
-
-Example:
-```json
-{
-  "ros2_mcp": {
-    "command": "docker",
-    "args": [
-      "run",
-      "-i",
-      "--rm",
-      "-e", "MCP_ROS_DISCOVERY_STABLE_SEC=2.0",
-      "-e", "MCP_ROS_DISCOVERY_TIMEOUT_SEC=10.0",
-      "wisevision/ros2_mcp:<humble/jazzy>"
-    ],
-    "env": {},
-    "working_directory": null,
-    "start_on_launch": true
-  }
-}
-```
-
-If you see `docker: invalid reference format: repository name (library/RMW_IMPLEMENTATION=...) must be lowercase`, it usually means `RMW_IMPLEMENTATION=...` was parsed as the Docker image name. Make sure every `VAR=value` is preceded by `-e` (or `--env`) and appears **before** the image name in the `args` list.
-
 To use custom messages [create folder](#add-custom-messages) and paste it into config:
 ```json
 {
@@ -111,7 +80,7 @@ To use custom messages [create folder](#add-custom-messages) and paste it into c
 To use custom prompts:
 ```json
 {
-  "ros2_mcp": {
+  "mcp_server_ros_2": {
     "command": "docker",
     "args": [
       "run",
@@ -129,7 +98,7 @@ To use custom prompts:
 To use custom prompts from local folder:
 ```json
 {
-  "ros2_mcp": {
+  "mcp_server_ros_2": {
     "command": "docker",
     "args": [
       "run",
@@ -239,7 +208,7 @@ To use custom prompts:
 To use custom prompts from local folder:
 ```json
 {
-  "ros2_mcp": {
+  "mcp_server_ros_2": {
     "command": "docker",
     "args": [
       "run",
@@ -256,56 +225,10 @@ To use custom prompts from local folder:
   }
 }
 ```
-To use custom messages [create folder](#add-custom-messages) and paste it into config:
-```json
-{
-  "ros2_mcp": {
-    "command": "docker",
-    "args": [
-      "run",
-      "-i",
-      "--rm",
-      "-v", "~/mcp_custom_messages:/app/custom_msgs",
-      "wisevision/mcp_server_ros_2:<humble/jazzy>"
-    ],
-    "env": {},
-    "working_directory": null,
-    "start_on_launch": true
-  }
-}
-```
 
 ### Step 4: Save and Enjoy
 
 After saving you should see indicator that the MCP server is running. You can now test the setup by using the AI features in WARP.
-
-### How to use ros2 mcp with [rmw_zenoh](https://github.com/ros2/rmw_zenoh)
-
-Set the `RMW_IMPLEMENTATION` environment variable to `rmw_zenoh_cpp`:
-
-```json
-{
-  "ros2_mcp": {
-    "command": "docker",
-    "args": [
-      "run",
-      "-i",
-      "--rm",
-      "-e", "RMW_IMPLEMENTATION=rmw_zenoh_cpp",
-      "wisevision/ros2_mcp:<humble/jazzy>"
-    ],
-    "env": {},
-    "working_directory": null,
-    "start_on_launch": true
-  }
-}
-```
-
-Equivalent command (if you run Docker directly):
-```bash
-docker run -i --rm -e RMW_IMPLEMENTATION=rmw_zenoh_cpp wisevision/ros2_mcp:<humble/jazzy>
-```
-
 
 # Build docker image locally:
 ```bash
@@ -334,3 +257,18 @@ git clone https://github.com/ros/ros_tutorials.git #or your custom message pack
 cd ~/mcp_custom_messages
 colcon build
 ```
+
+## CODEX CLI
+
+To add ROS2 MCP to OpenAI's CODEX (the easiest way - using Docker), follow these steps:
+
+1. Open codex: 
+   ```bash
+   codex
+
+You should see similar output:
+![codex_add_mcp](../docs/assets/codex_cli_add_mcp.png)
+
+3. **Restart codex (required!)**
+
+---

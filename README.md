@@ -5,16 +5,16 @@
 ![ROS 2 Humble](https://img.shields.io/badge/ROS2-Humble-blue)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-purple)
 [![Docker](https://img.shields.io/badge/Docker-MCP-blue?logo=docker)](https://hub.docker.com/mcp/server/ros2/overview)
-[![GitHub stars](https://img.shields.io/github/stars/wise-vision/mcp_server_ros_2?style=social)](https://github.com/wise-vision/mcp_server_ros_2/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/wise-vision/ros2_mcp?style=social)](https://github.com/wise-vision/ros2_mcp/stargazers)
 
 ![Flow graph](docs/assets/flow-graph.gif)
 
 A **Python** implementation of the **Model Context Protocol (MCP)** for **ROS 2**. This server enables AI tooling to connect with **ROS 2** nodes, topics, and services using the **MCP** standard over **stdio**. Designed to be **the easiest** **ROS 2** MCP server to configure.
 
 # ✨ Tools
-- List available topics 
+- List available topics
 - List available services
-- Lists available actions with their types and request fields 
+- Lists available actions with their types and request fields
 - Call services
 - Subscribe to topics to collect messages
 - Publish messages to topics
@@ -87,8 +87,14 @@ Compare two ROS2 topics and report differences in their messages with detailed f
 
 If you find this useful, please ⭐ star the repo — it helps others discover it.
 
-🚀 **Enjoying this project?**  
+🚀 **Enjoying this project?**
 Feel free to contribute or reach out for support! Write issues, submit PRs, or join our [Discord community](https://discord.gg/9aSw6HbUaw) to connect with other ROS 2 and AI enthusiasts.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please check the [open issues](https://github.com/wise-vision/ros2_mcp/issues) for
+ways to help, open a pull request, or drop by our [Discord](https://discord.gg/9aSw6HbUaw) to discuss ideas
+before diving in. By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 # 🚀 Drone Mission Using Prompts
 ![Drone mission demo](docs/assets/drone_mcp_prompts.gif)
