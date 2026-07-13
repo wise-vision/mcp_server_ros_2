@@ -12,7 +12,7 @@
                     ros-humble-ros-gz-interfaces
     ```
 
-## Instruction 
+## Instruction
 1. Launch Gazebo:
     ```bash
     ign gazebo
@@ -34,6 +34,6 @@
     ```
 5. `Interact` with the `simulation` using `ROS 2 MCP`.
 
-    Ask the `Agent` to perform an action — the `MCP` will execute it in the simulation. 
-    
+    Ask the `Agent` to perform an action — the `MCP` will execute it in the simulation.
+
     For example: “Fly the drone up by one meter. Using ROS2 MCP”

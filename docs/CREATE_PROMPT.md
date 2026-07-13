@@ -38,5 +38,3 @@ add_prompt_handler(prompts_ros2.YourPromptName())
 ```
 
 ## 3. [Rebuilt MCP image after adding new changes](../installation/README.md#build-docker-image-locally)
-
-
