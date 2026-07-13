@@ -9,9 +9,9 @@ on:
 
 jobs:
   check-license:
-    runs-on: wisevision-runner
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: LICENSE Existence Checker
       uses: Gary-H9/license-existence-checker@v1.1.4
     - name: Setup Deno

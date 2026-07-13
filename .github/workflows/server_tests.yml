@@ -11,17 +11,17 @@ on:
 
 jobs:
   test:
-    runs-on: wisevision-runner
+    runs-on: ubuntu-latest
 
     container:
       image: ros:humble-ros-base
 
     env:
-      PYTHONPATH: .:/opt/ros/humble/lib/python3.10/site-packages
+      PYTHONPATH: .
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
 
     - name: Install dependencies
       run: |
@@ -52,8 +52,6 @@ jobs:
         npm run build
 
 
-    - name: Set PYTHONPATH environment variable
-      run: export PYTHONPATH=$PYTHONPATH:.:/opt/ros/humble/lib/python3.10/site-packages 
 
     - name: Run tests
       run: |

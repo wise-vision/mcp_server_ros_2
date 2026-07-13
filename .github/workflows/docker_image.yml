@@ -17,21 +17,14 @@ on:
 jobs:
   build_image:
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'
-    runs-on: wisevision-runner
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         ros_distro: [humble, jazzy]
-    container:
-      image: ubuntu:22.04
-    
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: Install Docker CLI
-        run: |
-          apt-get update
-          apt-get install -y docker.io
+        uses: actions/checkout@v5
 
       - name: Docker build (${{ matrix.ros_distro }})
         run: |
