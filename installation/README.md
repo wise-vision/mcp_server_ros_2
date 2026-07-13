@@ -257,3 +257,18 @@ git clone https://github.com/ros/ros_tutorials.git #or your custom message pack
 cd ~/mcp_custom_messages
 colcon build
 ```
+
+## CODEX CLI
+
+To add ROS2 MCP to OpenAI's CODEX (the easiest way - using Docker), follow these steps:
+
+1. Open codex: 
+   ```bash
+   codex
+
+You should see similar output:
+![codex_add_mcp](../docs/assets/codex_cli_add_mcp.png)
+
+3. **Restart codex (required!)**
+
+---
